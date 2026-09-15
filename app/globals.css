@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f0f9ff;
+}
+
+html,
+body {
+  background: var(--bg);
+  min-height: 100%;
+}
+
+/* Big, thumb-friendly tap targets everywhere - this app is used on phones
+   and tablets by kids first, desktop second. */
+button {
+  touch-action: manipulation;
+}

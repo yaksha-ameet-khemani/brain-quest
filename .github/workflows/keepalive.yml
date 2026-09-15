@@ -1,0 +1,20 @@
+name: Keep Supabase awake
+
+# Supabase's free tier pauses a project after ~7 days with no activity.
+# GitHub Actions' free tier includes 2,000 minutes/month for private repos
+# (unlimited for public repos) - a weekly ping costs a few seconds, so this
+# runs well inside the free allowance forever.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # every Monday at 06:00 UTC
+  workflow_dispatch: {} # lets you trigger it manually from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the app's keepalive endpoint
+        run: |
+          curl --fail --show-error \
+            -H "x-keepalive-secret: ${{ secrets.KEEPALIVE_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/keepalive"
