@@ -1,27 +1,47 @@
 import { NextResponse } from "next/server";
 import { query, queryOne, withTransaction } from "@/lib/db";
 import { requireParent } from "@/lib/requireParent";
+import { ownedChild } from "@/lib/childOwnership";
 import type { ChildRow, RedemptionRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-// GET: every redemption request across all children, newest first.
+// GET: redemption requests, newest first - every child's for admin, only
+// your own children's for a parent.
 export async function GET() {
   const parent = await requireParent();
   if (!parent) return NextResponse.json({ error: "Parent sign-in required." }, { status: 401 });
 
-  const rows = await query<
-    Pick<
-      RedemptionRow,
-      "id" | "child_id" | "reward_name" | "cost" | "status" | "requested_at" | "decided_at" | "note"
-    >
-  >(
-    `SELECT id, child_id, reward_name, cost, status, requested_at, decided_at, note
-     FROM redemptions ORDER BY requested_at DESC LIMIT 100`
-  );
-
-  const children = await query<Pick<ChildRow, "id" | "name" | "avatar">>("SELECT id, name, avatar FROM children");
+  const children =
+    parent.role === "admin"
+      ? await query<Pick<ChildRow, "id" | "name" | "avatar">>("SELECT id, name, avatar FROM children")
+      : await query<Pick<ChildRow, "id" | "name" | "avatar">>(
+          "SELECT id, name, avatar FROM children WHERE parent_id = $1",
+          [parent.id]
+        );
   const childById = new Map(children.map((c) => [c.id, c]));
+
+  const rows =
+    parent.role === "admin"
+      ? await query<
+          Pick<
+            RedemptionRow,
+            "id" | "child_id" | "reward_name" | "cost" | "status" | "requested_at" | "decided_at" | "note"
+          >
+        >(
+          `SELECT id, child_id, reward_name, cost, status, requested_at, decided_at, note
+           FROM redemptions ORDER BY requested_at DESC LIMIT 100`
+        )
+      : await query<
+          Pick<
+            RedemptionRow,
+            "id" | "child_id" | "reward_name" | "cost" | "status" | "requested_at" | "decided_at" | "note"
+          >
+        >(
+          `SELECT id, child_id, reward_name, cost, status, requested_at, decided_at, note
+           FROM redemptions WHERE child_id = ANY($1::uuid[]) ORDER BY requested_at DESC LIMIT 100`,
+          [children.map((c) => c.id)]
+        );
 
   const redemptions = rows.map((r) => ({
     ...r,
@@ -59,6 +79,9 @@ export async function POST(req: Request) {
     [redemptionId]
   );
   if (!redemption) return NextResponse.json({ error: "Not found." }, { status: 404 });
+  if (!(await ownedChild(redemption.child_id, parent))) {
+    return NextResponse.json({ error: "That's not your child's request to decide." }, { status: 403 });
+  }
 
   if (action === "deny" && redemption.status !== "pending") {
     return NextResponse.json({ error: "Only a pending request can be denied." }, { status: 409 });

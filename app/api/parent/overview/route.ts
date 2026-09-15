@@ -15,15 +15,28 @@ interface CategoryStat {
 // The actual point of a parent dashboard isn't "how many points does each
 // kid have" (the kid screen already shows that) - it's "which categories is
 // each kid weak in", so you know what to nudge them toward. This endpoint
-// does that aggregation. All parents (and admin) share the same pool of
-// children - there's no per-parent filter here.
+// does that aggregation. Admin sees every child; a parent sees only their own.
 export async function GET() {
   const parent = await requireParent();
   if (!parent) return NextResponse.json({ error: "Parent sign-in required." }, { status: 401 });
 
-  const children = await query<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
-    "SELECT id, name, avatar, level FROM children ORDER BY created_at ASC"
-  );
+  const children =
+    parent.role === "admin"
+      ? await query<Pick<ChildRow, "id" | "name" | "avatar" | "level" | "parent_id">>(
+          "SELECT id, name, avatar, level, parent_id FROM children ORDER BY created_at ASC"
+        )
+      : await query<Pick<ChildRow, "id" | "name" | "avatar" | "level" | "parent_id">>(
+          "SELECT id, name, avatar, level, parent_id FROM children WHERE parent_id = $1 ORDER BY created_at ASC",
+          [parent.id]
+        );
+
+  // Admin manages children across multiple parents, so it's worth showing
+  // whose child is whose; a parent already knows (everything shown is theirs).
+  let emailByParentId = new Map<string, string>();
+  if (parent.role === "admin" && children.length > 0) {
+    const parents = await query<{ id: string; email: string }>("SELECT id, email FROM parents");
+    emailByParentId = new Map(parents.map((p) => [p.id, p.email]));
+  }
 
   const overview = await Promise.all(
     children.map(async (child) => {
@@ -53,6 +66,7 @@ export async function GET() {
 
       return {
         child: { id: child.id, name: child.name, avatar: child.avatar, level: child.level },
+        parentEmail: emailByParentId.get(child.parent_id) ?? null,
         balance,
         roundsPlayed,
         categoryStats: Array.from(byCategory.values()).sort((a, b) => b.total - a.total),

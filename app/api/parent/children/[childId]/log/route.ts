@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { requireParent } from "@/lib/requireParent";
+import { ownedChild } from "@/lib/childOwnership";
 import type { ChildRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ childId
   const { childId } = await params;
   const parent = await requireParent();
   if (!parent) return NextResponse.json({ error: "Sign-in required." }, { status: 401 });
+
+  if (!(await ownedChild(childId, parent))) {
+    return NextResponse.json({ error: "Not found." }, { status: 404 });
+  }
 
   const child = await queryOne<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
     "SELECT id, name, avatar, level FROM children WHERE id = $1",

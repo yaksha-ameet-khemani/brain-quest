@@ -14,7 +14,7 @@ export interface ParentRow {
 
 export interface ChildRow {
   id: string;
-  created_by: string | null;
+  parent_id: string;
   name: string;
   avatar: string;
   level: 1 | 2;

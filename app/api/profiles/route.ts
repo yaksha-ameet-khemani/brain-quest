@@ -7,9 +7,10 @@ import type { ChildRow } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 // GET: the profile picker screen on the home page needs to know who can play
-// - name, avatar, level. Never the pin hash. This is a single-household
-// deployment (see docs/SETUP.md), so every child in the table is shown; it
-// is not a multi-family public listing.
+// - name, avatar, level. Never the pin hash. Unfiltered by owning parent on
+// purpose - any kid in the household picks their own tile regardless of
+// which parent account manages them; ownership only affects who can
+// edit/view a child's data, not who can play.
 export async function GET() {
   const children = await query<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
     "SELECT id, name, avatar, level FROM children ORDER BY created_at ASC"
@@ -17,8 +18,12 @@ export async function GET() {
   return NextResponse.json({ children });
 }
 
-// POST: create a new kid profile. Any signed-in parent or admin - all
-// parents share the same pool of children, there's no per-parent ownership.
+// POST: create a new kid profile.
+// - A regular parent's children are automatically owned by them.
+// - Admin must specify which parent (parentId in the body) the child
+//   belongs to - including, if they want, the admin's own account. Admin
+//   creating a child always requires selecting/creating that parent first,
+//   by design.
 export async function POST(req: Request) {
   const parent = await requireParent();
   if (!parent) {
@@ -38,11 +43,29 @@ export async function POST(req: Request) {
     );
   }
 
+  let ownerParentId: string;
+  if (parent.role === "admin") {
+    const requestedParentId: string | undefined = body?.parentId;
+    if (!requestedParentId) {
+      return NextResponse.json(
+        { error: "parentId is required - pick which parent this child belongs to." },
+        { status: 400 }
+      );
+    }
+    const owner = await queryOne("SELECT id FROM parents WHERE id = $1", [requestedParentId]);
+    if (!owner) {
+      return NextResponse.json({ error: "That parent account doesn't exist." }, { status: 400 });
+    }
+    ownerParentId = requestedParentId;
+  } else {
+    ownerParentId = parent.id;
+  }
+
   const child = await queryOne<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
-    `INSERT INTO children (created_by, name, level, avatar, pin_hash)
+    `INSERT INTO children (parent_id, name, level, avatar, pin_hash)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING id, name, avatar, level`,
-    [parent.id, name, level, avatar, hashPin(pin)]
+    [ownerParentId, name, level, avatar, hashPin(pin)]
   );
   if (!child) {
     return NextResponse.json({ error: "Could not create profile." }, { status: 500 });

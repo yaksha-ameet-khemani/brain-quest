@@ -11,6 +11,7 @@ interface CategoryStat {
 }
 interface ChildOverview {
   child: { id: string; name: string; avatar: string; level: 1 | 2 };
+  parentEmail: string | null;
   balance: number;
   roundsPlayed: number;
   categoryStats: CategoryStat[];
@@ -45,7 +46,7 @@ export default function ParentDashboard({
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const [newChild, setNewChild] = useState({ name: "", level: "1", pin: "", avatar: "🙂" });
+  const [newChild, setNewChild] = useState({ name: "", level: "1", pin: "", avatar: "🙂", parentId: "" });
   const [creating, setCreating] = useState(false);
 
   const [newParent, setNewParent] = useState({ email: "", password: "" });
@@ -91,6 +92,10 @@ export default function ParentDashboard({
   async function addChild(e: FormEvent) {
     e.preventDefault();
     setMessage(null);
+    if (role === "admin" && !newChild.parentId) {
+      setMessage("Pick which parent this child belongs to first.");
+      return;
+    }
     setCreating(true);
     try {
       const res = await fetch("/api/profiles", {
@@ -101,6 +106,7 @@ export default function ParentDashboard({
           level: Number(newChild.level),
           pin: newChild.pin,
           avatar: newChild.avatar,
+          ...(role === "admin" ? { parentId: newChild.parentId } : {}),
         }),
       });
       const data = await res.json();
@@ -108,7 +114,7 @@ export default function ParentDashboard({
         setMessage(data.error ?? "Could not add child.");
         return;
       }
-      setNewChild({ name: "", level: "1", pin: "", avatar: "🙂" });
+      setNewChild({ name: "", level: "1", pin: "", avatar: "🙂", parentId: "" });
       setMessage(`Added ${data.child.name}!`);
       await refresh();
     } finally {
@@ -236,7 +242,10 @@ export default function ParentDashboard({
                 </p>
                 <p className="font-bold text-brand-600">{o.balance} pts</p>
               </div>
-              <p className="mt-1 text-xs text-slate-500">{o.roundsPlayed} rounds completed</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {o.roundsPlayed} rounds completed
+                {role === "admin" && o.parentEmail && <> · parent: {o.parentEmail}</>}
+              </p>
               {o.categoryStats.length > 0 && (
                 <div className="mt-3 grid gap-1.5">
                   {o.categoryStats.map((c) => (
@@ -277,6 +286,22 @@ export default function ParentDashboard({
             onChange={(e) => setNewChild((s) => ({ ...s, name: e.target.value }))}
             className="rounded-xl border border-slate-200 p-3"
           />
+          {role === "admin" && (
+            <select
+              required
+              value={newChild.parentId}
+              onChange={(e) => setNewChild((s) => ({ ...s, parentId: e.target.value }))}
+              className="rounded-xl border border-slate-200 p-3"
+            >
+              <option value="">Which parent owns this child?</option>
+              {parents.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.email}
+                  {p.role === "admin" ? " (you, admin)" : ""}
+                </option>
+              ))}
+            </select>
+          )}
           <div className="flex gap-3">
             <input
               placeholder="Avatar emoji"

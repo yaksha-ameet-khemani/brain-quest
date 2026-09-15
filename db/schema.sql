@@ -36,13 +36,17 @@ create table parents (
 create unique index parents_single_admin_idx on parents (role) where role = 'admin';
 
 -- ---------------------------------------------------------------------------
--- Children (kid profiles). `created_by` just records who added them, for
--- reference - it does not restrict who can view/manage the child, since all
--- parents (and admin) share visibility of every child.
+-- Children (kid profiles). `parent_id` is real ownership, not just a record
+-- of who clicked "add": a parent only ever sees/manages their own children.
+-- Admin sees and manages every child regardless of parent_id, and can
+-- create a child under any parent (or under their own admin account).
+-- No ON DELETE clause on purpose (defaults to RESTRICT) - deleting a parent
+-- who still has children is refused rather than silently orphaning or
+-- cascading away a child's whole history; see app/api/admin/parents/[id].
 -- ---------------------------------------------------------------------------
 create table children (
   id uuid primary key default gen_random_uuid(),
-  created_by uuid references parents (id) on delete set null,
+  parent_id uuid not null references parents (id),
   name text not null,
   avatar text not null default '🙂',
   level smallint not null check (level in (1, 2)), -- 1 = younger / 2 = older group, not tied to a school grade number
