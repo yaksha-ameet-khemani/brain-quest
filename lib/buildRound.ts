@@ -1,7 +1,8 @@
 import "server-only";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { query } from "@/lib/db";
 import { generateMathQuestions } from "@/lib/mathQuestions";
 import { QUESTIONS_PER_ROUND, type Level } from "@/lib/config";
+import type { QuestionRow } from "@/lib/types";
 
 export interface RoundQuestionDraft {
   source: "bank" | "generated";
@@ -41,13 +42,11 @@ function shuffleArray<T>(arr: T[]): T[] {
 export async function buildRoundQuestions(level: Level, childId: string): Promise<RoundQuestionDraft[]> {
   const BANK_COUNT = 3;
 
-  const { data: bankPool, error: poolError } = await supabaseAdmin()
-    .from("questions")
-    .select("id, category, question_text, options, correct_option_index, explanation")
-    .eq("level", level)
-    .eq("is_active", true);
-  if (poolError) throw new Error(poolError.message);
-  if (!bankPool || bankPool.length === 0) {
+  const bankPool = await query<QuestionRow>(
+    "SELECT id, category, question_text, options, correct_option_index, explanation FROM questions WHERE level = $1 AND is_active = true",
+    [level]
+  );
+  if (bankPool.length === 0) {
     // No curated questions seeded yet - fall back to an all-generated round
     // rather than failing the whole round outright.
     const generated = generateMathQuestions(level, QUESTIONS_PER_ROUND);
@@ -64,21 +63,18 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
     );
   }
 
-  // Two-step instead of an embedded `rounds!inner(...)` select - simpler to
-  // type correctly and just as cheap at this data size.
-  const { data: childRounds } = await supabaseAdmin().from("rounds").select("id").eq("child_id", childId);
-  const roundIds = (childRounds ?? []).map((r) => r.id);
+  const childRounds = await query<{ id: string }>("SELECT id FROM rounds WHERE child_id = $1", [childId]);
+  const roundIds = childRounds.map((r) => r.id);
 
   let recentIds = new Set<string>();
   if (roundIds.length > 0) {
-    const { data: recent } = await supabaseAdmin()
-      .from("round_questions")
-      .select("question_id")
-      .in("round_id", roundIds)
-      .eq("source", "bank")
-      .order("shown_at", { ascending: false })
-      .limit(30);
-    recentIds = new Set((recent ?? []).map((r) => r.question_id).filter((id): id is string => Boolean(id)));
+    const recent = await query<{ question_id: string | null }>(
+      `SELECT question_id FROM round_questions
+       WHERE round_id = ANY($1::uuid[]) AND source = 'bank'
+       ORDER BY shown_at DESC NULLS LAST LIMIT 30`,
+      [roundIds]
+    );
+    recentIds = new Set(recent.map((r) => r.question_id).filter((id): id is string => Boolean(id)));
   }
 
   const unseen = bankPool.filter((q) => !recentIds.has(q.id));
@@ -86,18 +82,15 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
   const chosen = shuffleArray(pool).slice(0, Math.min(BANK_COUNT, pool.length));
 
   const bankDrafts: RoundQuestionDraft[] = chosen.map((q) => {
-    const { options, correctIndex } = shuffleWithCorrectTracking(
-      q.options as string[],
-      q.correct_option_index as number
-    );
+    const { options, correctIndex } = shuffleWithCorrectTracking(q.options, q.correct_option_index);
     return {
       source: "bank",
-      questionId: q.id as string,
-      category: q.category as string,
-      questionText: q.question_text as string,
+      questionId: q.id,
+      category: q.category,
+      questionText: q.question_text,
       options,
       correctIndex,
-      explanation: q.explanation as string,
+      explanation: q.explanation,
     };
   });
 

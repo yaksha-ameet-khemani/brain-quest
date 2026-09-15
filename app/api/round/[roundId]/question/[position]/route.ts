@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { queryOne } from "@/lib/db";
 import { requireKid } from "@/lib/requireKid";
 import { sanitizeQuestion } from "@/lib/sanitizeQuestion";
+import type { RoundQuestionRow, RoundRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +14,10 @@ export async function GET(
   const kid = await requireKid();
   if (!kid) return NextResponse.json({ error: "Sign-in required." }, { status: 401 });
 
-  const db = supabaseAdmin();
-  const { data: round } = await db
-    .from("rounds")
-    .select("id, child_id, status")
-    .eq("id", roundId)
-    .single();
+  const round = await queryOne<Pick<RoundRow, "id" | "child_id" | "status">>(
+    "SELECT id, child_id, status FROM rounds WHERE id = $1",
+    [roundId]
+  );
   if (!round || round.child_id !== kid.childId) {
     return NextResponse.json({ error: "Round not found." }, { status: 404 });
   }
@@ -31,24 +30,36 @@ export async function GET(
   // A kid can only ever fetch the next unanswered question, never jump ahead
   // (which would let a client pre-fetch every question's options/explanation
   // before answering earlier ones, or fiddle with timers out of order).
-  const { data: nextUnanswered } = await db
-    .from("round_questions")
-    .select("position, category, question_text, options, shown_at")
-    .eq("round_id", roundId)
-    .is("answered_at", null)
-    .order("position", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const nextUnanswered = await queryOne<
+    Pick<RoundQuestionRow, "position" | "category" | "question_text" | "options" | "shown_at">
+  >(
+    `SELECT position, category, question_text, options, shown_at FROM round_questions
+     WHERE round_id = $1 AND answered_at IS NULL
+     ORDER BY position ASC LIMIT 1`,
+    [roundId]
+  );
 
   if (!nextUnanswered || nextUnanswered.position !== pos) {
     return NextResponse.json({ error: "Wrong question position." }, { status: 409 });
   }
 
-  if (!nextUnanswered.shown_at) {
-    const shownAt = new Date().toISOString();
-    await db.from("round_questions").update({ shown_at: shownAt }).eq("round_id", roundId).eq("position", pos);
-    nextUnanswered.shown_at = shownAt;
+  let shownAt = nextUnanswered.shown_at;
+  if (!shownAt) {
+    shownAt = new Date().toISOString();
+    await queryOne("UPDATE round_questions SET shown_at = $1 WHERE round_id = $2 AND position = $3", [
+      shownAt,
+      roundId,
+      pos,
+    ]);
   }
 
-  return NextResponse.json({ question: sanitizeQuestion(nextUnanswered) });
+  return NextResponse.json({
+    question: sanitizeQuestion({
+      position: nextUnanswered.position,
+      category: nextUnanswered.category,
+      question_text: nextUnanswered.question_text,
+      options: nextUnanswered.options,
+      shown_at: shownAt,
+    }),
+  });
 }

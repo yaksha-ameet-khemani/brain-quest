@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 interface CategoryStat {
   category: string;
@@ -46,7 +45,7 @@ export default function ParentDashboard({ parentEmail }: { parentEmail: string }
   }, []);
 
   async function signOut() {
-    await supabaseBrowser().auth.signOut();
+    await fetch("/api/auth/parent-logout", { method: "POST" });
     router.push("/");
     router.refresh();
   }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
-import { requireParent } from "@/lib/supabaseServerAuth";
+import { query, queryOne, withTransaction } from "@/lib/db";
+import { requireParent } from "@/lib/requireParent";
+import type { ChildRow, RedemptionRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -9,20 +10,20 @@ export async function GET() {
   const parent = await requireParent();
   if (!parent) return NextResponse.json({ error: "Parent sign-in required." }, { status: 401 });
 
-  const db = supabaseAdmin();
-  const { data, error } = await db
-    .from("redemptions")
-    .select("id, child_id, reward_name, cost, status, requested_at, decided_at, note")
-    .order("requested_at", { ascending: false })
-    .limit(100);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const rows = await query<
+    Pick<
+      RedemptionRow,
+      "id" | "child_id" | "reward_name" | "cost" | "status" | "requested_at" | "decided_at" | "note"
+    >
+  >(
+    `SELECT id, child_id, reward_name, cost, status, requested_at, decided_at, note
+     FROM redemptions ORDER BY requested_at DESC LIMIT 100`
+  );
 
-  // Two-step instead of an embedded `children(...)` select - simpler to type
-  // correctly and just as cheap at this data size.
-  const { data: children } = await db.from("children").select("id, name, avatar");
-  const childById = new Map((children ?? []).map((c) => [c.id, c]));
+  const children = await query<Pick<ChildRow, "id" | "name" | "avatar">>("SELECT id, name, avatar FROM children");
+  const childById = new Map(children.map((c) => [c.id, c]));
 
-  const redemptions = (data ?? []).map((r) => ({
+  const redemptions = rows.map((r) => ({
     ...r,
     child: childById.has(r.child_id)
       ? { name: childById.get(r.child_id)!.name, avatar: childById.get(r.child_id)!.avatar }
@@ -31,6 +32,9 @@ export async function GET() {
 
   return NextResponse.json({ redemptions });
 }
+
+const VALID_ACTIONS = ["approve", "deny", "fulfill"] as const;
+type Action = (typeof VALID_ACTIONS)[number];
 
 // POST: approve, deny, or fulfill a pending/approved request.
 // - deny: refunds the points that were debited at request time.
@@ -45,19 +49,15 @@ export async function POST(req: Request) {
   const rawAction: string | undefined = body?.action;
   const note: string | undefined = body?.note;
 
-  const VALID_ACTIONS = ["approve", "deny", "fulfill"] as const;
-  type Action = (typeof VALID_ACTIONS)[number];
   if (!redemptionId || !VALID_ACTIONS.includes(rawAction as Action)) {
     return NextResponse.json({ error: "redemptionId and a valid action are required." }, { status: 400 });
   }
   const action: Action = rawAction as Action;
 
-  const db = supabaseAdmin();
-  const { data: redemption } = await db
-    .from("redemptions")
-    .select("id, child_id, cost, reward_name, status")
-    .eq("id", redemptionId)
-    .single();
+  const redemption = await queryOne<Pick<RedemptionRow, "id" | "child_id" | "cost" | "reward_name" | "status">>(
+    "SELECT id, child_id, cost, reward_name, status FROM redemptions WHERE id = $1",
+    [redemptionId]
+  );
   if (!redemption) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
   if (action === "deny" && redemption.status !== "pending") {
@@ -71,30 +71,25 @@ export async function POST(req: Request) {
     approve: "approved",
     deny: "denied",
     fulfill: "fulfilled",
-  } as const satisfies Record<string, "approved" | "denied" | "fulfilled">;
+  } as const satisfies Record<Action, "approved" | "denied" | "fulfilled">;
 
-  const { data: updated, error: updateError } = await db
-    .from("redemptions")
-    .update({
-      status: statusMap[action],
-      decided_at: new Date().toISOString(),
-      decided_by: parent.id,
-      note: note ?? null,
-    })
-    .eq("id", redemptionId)
-    .select("id, status")
-    .single();
-  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+  const updated = await withTransaction(async (tx) => {
+    const result = await tx.query(
+      `UPDATE redemptions SET status = $1, decided_at = now(), decided_by = $2, note = $3
+       WHERE id = $4 RETURNING id, status`,
+      [statusMap[action], parent.id, note ?? null, redemptionId]
+    );
 
-  if (action === "deny") {
-    await db.from("point_transactions").insert({
-      child_id: redemption.child_id,
-      type: "refund",
-      amount: redemption.cost,
-      reason: `Refund: ${redemption.reward_name} request denied`,
-      redemption_id: redemption.id,
-    });
-  }
+    if (action === "deny") {
+      await tx.query(
+        `INSERT INTO point_transactions (child_id, type, amount, reason, redemption_id)
+         VALUES ($1, 'refund', $2, $3, $4)`,
+        [redemption.child_id, redemption.cost, `Refund: ${redemption.reward_name} request denied`, redemption.id]
+      );
+    }
+
+    return result.rows[0];
+  });
 
   return NextResponse.json({ redemption: updated });
 }

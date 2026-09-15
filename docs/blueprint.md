@@ -1,9 +1,18 @@
-# Brain Quest - Blueprint (v2)
+# Brain Quest - Blueprint (v3)
 
 This revises `Kids Logic & Reward Quiz Web Application Blueprint.docx` (the
 original spec) based on a security/gameplay review. The changes are called
 out explicitly below so it's clear what moved and why. This file is the
 living reference going forward - the .docx is kept for history.
+
+**v3 update:** the backend moved from Supabase to Neon (plain Postgres),
+because Supabase's free tier caps an account at 2 projects and this user
+already had two. Since Supabase Auth went away with it, the parent account
+is now our own email+password table with a signed session cookie (mirroring
+the kid-PIN pattern below) instead of a hosted auth service - see "Real auth
+for the parent" below. Everything else - the schema, the economy, the
+security model of "nothing but our server ever touches the database" - is
+unchanged; Postgres is Postgres either way.
 
 ## Goal
 
@@ -16,41 +25,45 @@ for correct answers, redeem points for real rewards. Zero ongoing cost.
    `correct_option_index` in a table the client would read directly, and
    shipped a "local fallback JSON" of every question+answer to the browser.
    Any kid who opens DevTools finds the answer key in minutes. Now: the
-   browser only ever talks to our own Next.js API routes, which use the
-   Supabase **service role key** (server-only, never sent to the client) to
-   grade answers and never include `correct_index`/`explanation` in a
-   response until *after* that question is answered.
+   browser only ever talks to our own Next.js API routes, which hold the
+   only database credential that exists (server-only, never sent to the
+   client) to grade answers and never include `correct_index`/`explanation`
+   in a response until *after* that question is answered.
 
 2. **Points are a ledger, not a mutable column.** `point_transactions` is
    append-only; a balance is `SUM(amount)`. This makes the balance
    tamper-resistant (nothing writes it directly) and gives a full audit
    trail ("where did my points come from?").
 
-3. **Real auth for the parent, PIN for kids.** The parent has an actual
-   Supabase Auth account (email+password). Kids pick their profile and type
-   a short PIN (hashed with scrypt, rate-limited 5 tries/minute) - enough
-   friction for a family app without needing an email account per 9-year-old.
+3. **Real auth for the parent, PIN for kids.** The parent has an email+password
+   account (`parents` table, scrypt-hashed password, our own signed session
+   cookie - see `lib/requireParent.ts`). Sign-up is capped at one account by
+   the app itself: the moment that first account exists, further sign-ups
+   are rejected, no dashboard toggle to remember. Kids pick their profile and
+   type a short PIN (same scrypt hashing, rate-limited 5 tries/minute) -
+   enough friction for a family app without needing an email account per
+   9-year-old.
 
 4. **Schema fixes:**
    - Parents are no longer rows in the same table as kids (that made the old
      schema's `grade_level NOT NULL` constraint impossible to satisfy for a
-     parent row). Parents are `auth.users`; kids are a separate `children`
-     table.
+     parent row). Parents are their own `parents` table; kids are a separate
+     `children` table referencing it.
    - `level` (1/2) replaces `grade_level` (4/8) so the app doesn't need a
      migration every September.
    - `redemptions.status` now has a real lifecycle: `pending → approved/denied
      → fulfilled`, and denying refunds the points automatically.
-   - Every table has RLS enabled with **zero policies** - the anon/authenticated
-     roles can read or write nothing directly. This is a deliberate,
-     simpler alternative to writing per-table RLS policies: since 100% of
-     game logic goes through our server routes with the service-role key,
-     there is nothing for the anon key to legitimately touch.
+   - There is no public entry point to the database at all - no anon/public
+     API key, no PostgREST layer. The connection string is a server-only
+     secret; every game operation goes through our own Next.js API routes.
+     That's simpler than writing RLS policies: there's nothing else that can
+     legitimately reach the tables to lock down.
 
 5. **Content never runs out.** The original 20-question bank would be
    exhausted in a single day of max play. Math questions are now generated
    from templates at request time (`lib/mathQuestions.ts`) - effectively
    infinite variety. Logic/riddle/spatial stay as a curated, hand-verified
-   bank (`supabase/seed.sql`), with recently-served questions avoided when
+   bank (`db/seed.sql`), with recently-served questions avoided when
    there's enough pool left to do so, and options re-shuffled on every
    serving so a fixed storage order never becomes memorizable.
 
@@ -76,9 +89,12 @@ for correct answers, redeem points for real rewards. Zero ongoing cost.
    per child - the actual point of a parent dashboard (knowing what to help
    with), not just a balance the kid screen already shows.
 
-10. **Free-tier caveat documented, not silently assumed:** Supabase free
-    projects pause after ~7 days idle. `.github/workflows/keepalive.yml`
-    (also free) pings the app weekly to prevent that. See `docs/SETUP.md`.
+10. **Free-tier caveat documented, not silently assumed:** free Postgres
+    hosts (including Neon) auto-suspend an idle database's compute after a
+    short period - invisible in practice (next query just waits a moment to
+    wake it), but `.github/workflows/keepalive.yml` (also free) pings the app
+    weekly as a hedge against any provider's longer-term inactivity policy.
+    See `docs/SETUP.md`.
 
 ## Point economy (current numbers, in `lib/config.ts`)
 
@@ -114,8 +130,8 @@ match how fast you want rewards to arrive.
 
 ## Data model
 
-See `supabase/schema.sql` for the authoritative version, with comments.
-Summary: `children`, `questions` (curated bank), `rounds` +
+See `db/schema.sql` for the authoritative version, with comments. Summary:
+`parents`, `children`, `questions` (curated bank), `rounds` +
 `round_questions` (frozen per-serving snapshot, including shuffled option
 order and the answer - readable only server-side), `point_transactions`
 (the ledger), `rewards`, `redemptions`.
@@ -123,17 +139,20 @@ order and the answer - readable only server-side), `point_transactions`
 ## Stack
 
 Next.js 14+ (App Router) + TypeScript + Tailwind, hosted on Vercel's free
-tier (`*.vercel.app`, no domain purchase needed). Supabase free tier
-(Postgres + Auth). GitHub free private repo. No paid API, SMS, or email
-service anywhere in the stack - see `docs/SETUP.md` for the full free-tier
-walkthrough and its one caveat (the idle-pause behavior above).
+tier (`*.vercel.app`, no domain purchase needed). Neon free tier (plain
+Postgres, accessed via `pg` - see `lib/db.ts`). GitHub free private repo. No
+paid API, SMS, or email service anywhere in the stack - see `docs/SETUP.md`
+for the full free-tier walkthrough and its one caveat (the idle-suspend
+behavior above). The database layer isn't Neon-specific - any Postgres host
+that gives you a connection string works, so this isn't locked to one
+provider either.
 
 ## Deliberately out of scope for v1
 
 - Multi-family/multi-tenant support (this is a single-household app - every
   child in the table shows on the picker screen, by design).
 - A parent UI for editing/deactivating individual bank questions (they can be
-  added via `supabase/seed.sql` or a direct SQL insert for now; `POST
+  added via `db/seed.sql` or a direct SQL insert for now; `POST
   /api/rewards` exists for the reward catalog, an equivalent for questions is
   a reasonable next step if the seeded bank needs expanding).
 - Spaced-repetition review of missed questions (flagged as a good addition

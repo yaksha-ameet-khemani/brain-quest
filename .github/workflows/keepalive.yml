@@ -1,9 +1,13 @@
-name: Keep Supabase awake
+name: Keep the database awake
 
-# Supabase's free tier pauses a project after ~7 days with no activity.
-# GitHub Actions' free tier includes 2,000 minutes/month for private repos
-# (unlimited for public repos) - a weekly ping costs a few seconds, so this
-# runs well inside the free allowance forever.
+# Free Postgres hosts (including Neon) auto-suspend an idle database after a
+# short period of inactivity to save resources - normally invisible, since
+# the next query just waits a moment for it to wake up. This ping is a
+# lightweight hedge against any provider's longer-term "inactive projects
+# may be paused/deleted" policy. GitHub Actions' free tier includes 2,000
+# minutes/month for private repos (unlimited for public repos) - a weekly
+# ping costs a few seconds, so this runs well inside the free allowance
+# forever.
 on:
   schedule:
     - cron: "0 6 * * 1" # every Monday at 06:00 UTC

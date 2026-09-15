@@ -2,42 +2,50 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
-import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { useEffect, useState, type FormEvent } from "react";
 
 export default function ParentLoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [checkedSignupState, setCheckedSignupState] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // If no parent account exists yet, default straight to the sign-up form -
+  // this is a single-household app, so the very first visitor is almost
+  // certainly the parent setting things up for the first time.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/parent-signup");
+        const data = await res.json();
+        if (data.signupOpen) setMode("signup");
+      } finally {
+        setCheckedSignupState(true);
+      }
+    })();
+  }, []);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    setInfo(null);
     setLoading(true);
-    const supabase = supabaseBrowser();
     try {
-      if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          setError(error.message);
-          return;
-        }
-        router.push("/parent");
-        router.refresh();
-      } else {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) {
-          setError(error.message);
-          return;
-        }
-        setInfo("Account created! Check your email to confirm, then sign in.");
-        setMode("signin");
+      const endpoint = mode === "signin" ? "/api/auth/parent-login" : "/api/auth/parent-signup";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong.");
+        return;
       }
+      router.push("/parent");
+      router.refresh();
     } finally {
       setLoading(false);
     }
@@ -62,34 +70,37 @@ export default function ParentLoginPage() {
         <input
           type="password"
           required
-          minLength={6}
-          placeholder="Password"
+          minLength={8}
+          placeholder="Password (min. 8 characters)"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="rounded-xl border border-slate-200 p-3"
         />
         {error && <p className="text-sm text-red-600">{error}</p>}
-        {info && <p className="text-sm text-emerald-600">{info}</p>}
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !checkedSignupState}
           className="rounded-xl bg-brand-500 p-3 font-semibold text-white disabled:opacity-50"
         >
           {loading ? "…" : mode === "signin" ? "Sign In" : "Create account"}
         </button>
       </form>
 
-      <button
-        onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-        className="text-sm text-brand-600 underline"
-      >
-        {mode === "signin" ? "First time? Create your parent account" : "Already have an account? Sign in"}
-      </button>
+      {mode === "signin" && (
+        <button onClick={() => setMode("signup")} className="text-sm text-brand-600 underline">
+          First time? Create your parent account
+        </button>
+      )}
+      {mode === "signup" && checkedSignupState && (
+        <button onClick={() => setMode("signin")} className="text-sm text-brand-600 underline">
+          Already have an account? Sign in
+        </button>
+      )}
 
       {mode === "signup" && (
         <p className="text-xs text-slate-400">
-          After creating your one parent account, turn off public sign-ups in the Supabase dashboard
-          (Authentication → Settings) so nobody else can register - see docs/SETUP.md.
+          Only one parent account is allowed for this app - once you create it, sign-ups close
+          automatically (no dashboard setting to remember).
         </p>
       )}
     </main>

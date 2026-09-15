@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireKid } from "@/lib/requireKid";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { queryOne } from "@/lib/db";
 import { getBalance } from "@/lib/balance";
 import { LEVELS, MAX_ROUNDS_PER_DAY, type Level } from "@/lib/config";
 import { todayRangeUtc } from "@/lib/timezone";
+import type { ChildRow } from "@/lib/types";
 import KidLogoutButton from "@/components/KidLogoutButton";
 
 export const dynamic = "force-dynamic";
@@ -13,25 +14,21 @@ export default async function DashboardPage() {
   const kid = await requireKid();
   if (!kid) redirect("/");
 
-  const db = supabaseAdmin();
-  const { data: child } = await db
-    .from("children")
-    .select("id, name, avatar, level")
-    .eq("id", kid.childId)
-    .single();
+  const child = await queryOne<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
+    "SELECT id, name, avatar, level FROM children WHERE id = $1",
+    [kid.childId]
+  );
   if (!child) redirect("/");
 
   const balance = await getBalance(kid.childId);
   const level = child.level as Level;
 
   const { start, end } = todayRangeUtc();
-  const { count } = await db
-    .from("rounds")
-    .select("id", { count: "exact", head: true })
-    .eq("child_id", kid.childId)
-    .gte("started_at", start.toISOString())
-    .lt("started_at", end.toISOString());
-  const roundsLeft = Math.max(0, MAX_ROUNDS_PER_DAY - (count ?? 0));
+  const countRow = await queryOne<{ count: string }>(
+    "SELECT count(*) FROM rounds WHERE child_id = $1 AND started_at >= $2 AND started_at < $3",
+    [kid.childId, start.toISOString(), end.toISOString()]
+  );
+  const roundsLeft = Math.max(0, MAX_ROUNDS_PER_DAY - Number(countRow?.count ?? 0));
 
   return (
     <main className="flex flex-col gap-8 pt-6">

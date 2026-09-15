@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { query } from "@/lib/db";
+import type { ChildRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const { data: children } = await supabaseAdmin()
-    .from("children")
-    .select("id, name, avatar, level")
-    .order("created_at", { ascending: true });
+  const children = await query<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
+    "SELECT id, name, avatar, level FROM children ORDER BY created_at ASC"
+  );
 
   return (
     <main className="flex flex-col gap-8 pt-8">
@@ -17,7 +17,7 @@ export default async function HomePage() {
       </header>
 
       <section className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {(children ?? []).map((child) => (
+        {children.map((child) => (
           <Link
             key={child.id}
             href={`/kid/${child.id}`}
@@ -28,7 +28,7 @@ export default async function HomePage() {
           </Link>
         ))}
 
-        {(!children || children.length === 0) && (
+        {children.length === 0 && (
           <p className="col-span-full text-center text-slate-500">
             No kid profiles yet - a parent needs to add one from Parent Mode below.
           </p>

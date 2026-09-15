@@ -1,38 +1,32 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { queryOne, withTransaction } from "@/lib/db";
 import { requireKid } from "@/lib/requireKid";
 import { buildRoundQuestions } from "@/lib/buildRound";
 import { sanitizeQuestion } from "@/lib/sanitizeQuestion";
 import { todayRangeUtc } from "@/lib/timezone";
 import { LEVELS, MAX_ROUNDS_PER_DAY, QUESTIONS_PER_ROUND, type Level } from "@/lib/config";
+import type { ChildRow, RoundQuestionRow, RoundRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function POST() {
   const kid = await requireKid();
   if (!kid) return NextResponse.json({ error: "Sign-in required." }, { status: 401 });
-  const db = supabaseAdmin();
 
-  const { data: child, error: childError } = await db
-    .from("children")
-    .select("id, level")
-    .eq("id", kid.childId)
-    .single();
-  if (childError || !child) {
-    return NextResponse.json({ error: "Profile not found." }, { status: 404 });
-  }
-  const level = child.level as Level;
+  const child = await queryOne<Pick<ChildRow, "id" | "level">>(
+    "SELECT id, level FROM children WHERE id = $1",
+    [kid.childId]
+  );
+  if (!child) return NextResponse.json({ error: "Profile not found." }, { status: 404 });
+  const level = child.level;
 
   // Resume an existing in-progress round rather than starting a new one -
   // so closing the browser mid-quiz doesn't lose progress or burn a daily slot.
-  const { data: existingRound } = await db
-    .from("rounds")
-    .select("id, level")
-    .eq("child_id", kid.childId)
-    .eq("status", "in_progress")
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const existingRound = await queryOne<Pick<RoundRow, "id" | "level">>(
+    `SELECT id, level FROM rounds WHERE child_id = $1 AND status = 'in_progress'
+     ORDER BY started_at DESC LIMIT 1`,
+    [kid.childId]
+  );
 
   if (existingRound) {
     const payload = await loadRoundForResume(existingRound.id);
@@ -40,18 +34,15 @@ export async function POST() {
     // Fell through: the in-progress round had no unanswered question left
     // (shouldn't normally happen - answer route completes it) - mark it
     // abandoned so the child isn't stuck, then fall through to a fresh round.
-    await db.from("rounds").update({ status: "abandoned" }).eq("id", existingRound.id);
+    await queryOne("UPDATE rounds SET status = 'abandoned' WHERE id = $1", [existingRound.id]);
   }
 
   const { start, end } = todayRangeUtc();
-  const { count, error: countError } = await db
-    .from("rounds")
-    .select("id", { count: "exact", head: true })
-    .eq("child_id", kid.childId)
-    .gte("started_at", start.toISOString())
-    .lt("started_at", end.toISOString());
-  if (countError) return NextResponse.json({ error: countError.message }, { status: 500 });
-  if ((count ?? 0) >= MAX_ROUNDS_PER_DAY) {
+  const countRow = await queryOne<{ count: string }>(
+    "SELECT count(*) FROM rounds WHERE child_id = $1 AND started_at >= $2 AND started_at < $3",
+    [kid.childId, start.toISOString(), end.toISOString()]
+  );
+  if (Number(countRow?.count ?? 0) >= MAX_ROUNDS_PER_DAY) {
     return NextResponse.json(
       { error: "You've played all your rounds for today. Come back tomorrow!" },
       { status: 403 }
@@ -60,74 +51,83 @@ export async function POST() {
 
   const drafts = await buildRoundQuestions(level, kid.childId);
 
-  const { data: round, error: roundError } = await db
-    .from("rounds")
-    .insert({ child_id: kid.childId, level })
-    .select("id")
-    .single();
-  if (roundError || !round) {
-    return NextResponse.json({ error: roundError?.message ?? "Could not start round." }, { status: 500 });
-  }
+  const created = await withTransaction(async (tx) => {
+    const roundResult = await tx.query("INSERT INTO rounds (child_id, level) VALUES ($1, $2) RETURNING id", [
+      kid.childId,
+      level,
+    ]);
+    const roundId = roundResult.rows[0].id as string;
 
-  const rows = drafts.map((d, position) => ({
-    round_id: round.id,
-    position,
-    source: d.source,
-    question_id: d.questionId,
-    category: d.category,
-    question_text: d.questionText,
-    options: d.options,
-    correct_index: d.correctIndex,
-    explanation: d.explanation,
-    shown_at: position === 0 ? new Date().toISOString() : null,
-  }));
+    let firstRow: { category: string; question_text: string; options: string[]; shown_at: string } | null = null;
+    for (let position = 0; position < drafts.length; position++) {
+      const d = drafts[position]!;
+      const shownAt = position === 0 ? new Date().toISOString() : null;
+      const inserted = await tx.query(
+        `INSERT INTO round_questions
+           (round_id, position, source, question_id, category, question_text, options, correct_index, explanation, shown_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         RETURNING category, question_text, options, shown_at`,
+        [
+          roundId,
+          position,
+          d.source,
+          d.questionId,
+          d.category,
+          d.questionText,
+          JSON.stringify(d.options),
+          d.correctIndex,
+          d.explanation,
+          shownAt,
+        ]
+      );
+      if (position === 0) firstRow = inserted.rows[0];
+    }
+    return { roundId, firstRow };
+  });
 
-  const { error: insertError } = await db.from("round_questions").insert(rows);
-  if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
-
-  const firstRow = rows[0];
-  if (!firstRow) {
+  if (!created.firstRow) {
     return NextResponse.json({ error: "Could not build round questions." }, { status: 500 });
   }
 
   return NextResponse.json({
-    roundId: round.id,
+    roundId: created.roundId,
     level,
     totalQuestions: QUESTIONS_PER_ROUND,
     timeLimitSeconds: LEVELS[level].perQuestionSeconds,
     question: sanitizeQuestion({
       position: 0,
-      category: firstRow.category,
-      question_text: firstRow.question_text,
-      options: firstRow.options,
-      shown_at: firstRow.shown_at,
+      category: created.firstRow.category,
+      question_text: created.firstRow.question_text,
+      options: created.firstRow.options,
+      shown_at: created.firstRow.shown_at,
     }),
   });
 }
 
 async function loadRoundForResume(roundId: string) {
-  const db = supabaseAdmin();
-  const { data: round } = await db.from("rounds").select("id, level").eq("id", roundId).single();
+  const round = await queryOne<Pick<RoundRow, "id" | "level">>("SELECT id, level FROM rounds WHERE id = $1", [
+    roundId,
+  ]);
   if (!round) return null;
 
-  const { data: nextQ } = await db
-    .from("round_questions")
-    .select("position, category, question_text, options, shown_at")
-    .eq("round_id", roundId)
-    .is("answered_at", null)
-    .order("position", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
+  const nextQ = await queryOne<
+    Pick<RoundQuestionRow, "position" | "category" | "question_text" | "options" | "shown_at">
+  >(
+    `SELECT position, category, question_text, options, shown_at FROM round_questions
+     WHERE round_id = $1 AND answered_at IS NULL
+     ORDER BY position ASC LIMIT 1`,
+    [roundId]
+  );
   if (!nextQ) return null;
 
-  if (!nextQ.shown_at) {
-    await db
-      .from("round_questions")
-      .update({ shown_at: new Date().toISOString() })
-      .eq("round_id", roundId)
-      .eq("position", nextQ.position);
-    nextQ.shown_at = new Date().toISOString();
+  let shownAt = nextQ.shown_at;
+  if (!shownAt) {
+    shownAt = new Date().toISOString();
+    await queryOne("UPDATE round_questions SET shown_at = $1 WHERE round_id = $2 AND position = $3", [
+      shownAt,
+      roundId,
+      nextQ.position,
+    ]);
   }
 
   const level = round.level as Level;
@@ -136,6 +136,12 @@ async function loadRoundForResume(roundId: string) {
     level,
     totalQuestions: QUESTIONS_PER_ROUND,
     timeLimitSeconds: LEVELS[level].perQuestionSeconds,
-    question: sanitizeQuestion(nextQ),
+    question: sanitizeQuestion({
+      position: nextQ.position,
+      category: nextQ.category,
+      question_text: nextQ.question_text,
+      options: nextQ.options,
+      shown_at: shownAt,
+    }),
   };
 }

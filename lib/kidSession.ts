@@ -4,7 +4,8 @@ import { createHmac, timingSafeEqual } from "crypto";
 // PIN their parent set. This signs a tiny, tamper-proof session token for
 // that, good enough for a family app and with zero external dependency or
 // cost. It is NOT a substitute for real auth on anything sensitive - parent
-// actions always go through Supabase Auth instead (see lib/supabaseServerAuth.ts).
+// actions always go through the separate parent session instead (see
+// lib/parentSession.ts / lib/requireParent.ts).
 
 export const KID_COOKIE_NAME = "kid_session";
 const SESSION_LIFETIME_MS = 12 * 60 * 60 * 1000; // 12 hours

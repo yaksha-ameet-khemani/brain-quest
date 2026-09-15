@@ -1,31 +1,43 @@
 -- Kids Logic & Reward Quiz - database schema
--- Run this once in the Supabase SQL Editor (or via `supabase db push`) on a
--- fresh project. See docs/SETUP.md for the full walkthrough.
+-- Plain Postgres - works on Neon, or any other Postgres host. Run this once
+-- against your database (Neon's SQL Editor, or `psql "$DATABASE_URL" -f
+-- db/schema.sql`). See docs/SETUP.md for the full walkthrough.
 --
--- Security model: every table has Row Level Security enabled with NO
--- policies defined. That means the anon/authenticated roles (what the
--- browser can ever use) can read or write NOTHING directly - every game
--- operation goes through our Next.js route handlers using the service role
--- key, which bypasses RLS entirely and lives only in server environment
--- variables. Parents authenticate as real Supabase Auth users
--- (auth.users); kids are rows in `children` with a hashed PIN checked by
--- our own /api/auth/kid-login route, not Supabase Auth.
+-- Security model: this database has no public entry point at all. There is
+-- no anon/public API key, no PostgREST layer, nothing exposed to the
+-- browser - the connection string is a server-only secret, held only in
+-- Vercel's environment variables, and every game operation goes through our
+-- own Next.js API routes. Parents authenticate against the `parents` table
+-- (email + hashed password, our own session cookie - see lib/requireParent.ts);
+-- kids are rows in `children` with a hashed PIN checked by
+-- /api/auth/kid-login, also our own code, not a third-party auth service.
 
 create extension if not exists pgcrypto;
+
+-- ---------------------------------------------------------------------------
+-- Parents. Deliberately capped at one row by application logic (see
+-- app/api/auth/parent-signup) - this is a single-household app, not a
+-- multi-tenant SaaS, so the first successful sign-up locks the door.
+-- ---------------------------------------------------------------------------
+create table parents (
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique,
+  password_hash text not null,
+  created_at timestamptz not null default now()
+);
 
 -- ---------------------------------------------------------------------------
 -- Children (kid profiles). One row per kid, owned by the parent who created it.
 -- ---------------------------------------------------------------------------
 create table children (
   id uuid primary key default gen_random_uuid(),
-  parent_id uuid not null references auth.users (id) on delete cascade,
+  parent_id uuid not null references parents (id) on delete cascade,
   name text not null,
   avatar text not null default '🙂',
   level smallint not null check (level in (1, 2)), -- 1 = younger / 2 = older group, not tied to a school grade number
   pin_hash text not null,
   created_at timestamptz not null default now()
 );
-alter table children enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Question bank (curated logic / riddle / spatial questions). Math questions
@@ -45,7 +57,6 @@ create table questions (
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
-alter table questions enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Rounds: one quiz attempt of QUESTIONS_PER_ROUND questions.
@@ -60,7 +71,6 @@ create table rounds (
   started_at timestamptz not null default now(),
   completed_at timestamptz
 );
-alter table rounds enable row level security;
 create index rounds_child_started_idx on rounds (child_id, started_at);
 
 -- ---------------------------------------------------------------------------
@@ -81,14 +91,13 @@ create table round_questions (
   options jsonb not null, -- shuffled order as shown to the kid
   correct_index smallint not null, -- index into the shuffled `options`
   explanation text not null,
-  shown_at timestamptz not null default now(),
+  shown_at timestamptz,
   answered_at timestamptz,
   selected_index smallint,
   is_correct boolean,
   points_awarded int not null default 0,
   unique (round_id, position)
 );
-alter table round_questions enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Points ledger. A child's balance is SUM(amount), never a mutable column -
@@ -104,7 +113,6 @@ create table point_transactions (
   redemption_id uuid,
   created_at timestamptz not null default now()
 );
-alter table point_transactions enable row level security;
 create index point_transactions_child_idx on point_transactions (child_id, created_at);
 
 -- ---------------------------------------------------------------------------
@@ -118,7 +126,6 @@ create table rewards (
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
-alter table rewards enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Redemption requests. Points are debited (as a 'redeem' transaction) the
@@ -134,8 +141,7 @@ create table redemptions (
   status text not null default 'pending' check (status in ('pending', 'approved', 'denied', 'fulfilled')),
   requested_at timestamptz not null default now(),
   decided_at timestamptz,
-  decided_by uuid references auth.users (id),
+  decided_by uuid references parents (id),
   note text
 );
-alter table redemptions enable row level security;
 create index redemptions_child_idx on redemptions (child_id, requested_at);

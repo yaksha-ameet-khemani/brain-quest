@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
-import { requireParent } from "@/lib/supabaseServerAuth";
+import { query } from "@/lib/db";
+import { requireParent } from "@/lib/requireParent";
 import { getBalance } from "@/lib/balance";
+import type { ChildRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -19,42 +20,35 @@ export async function GET() {
   const parent = await requireParent();
   if (!parent) return NextResponse.json({ error: "Parent sign-in required." }, { status: 401 });
 
-  const db = supabaseAdmin();
-  const { data: children, error } = await db
-    .from("children")
-    .select("id, name, avatar, level")
-    .eq("parent_id", parent.id)
-    .order("created_at", { ascending: true });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const children = await query<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
+    "SELECT id, name, avatar, level FROM children WHERE parent_id = $1 ORDER BY created_at ASC",
+    [parent.id]
+  );
 
   const overview = await Promise.all(
-    (children ?? []).map(async (child) => {
+    children.map(async (child) => {
       const balance = await getBalance(child.id);
 
-      const { data: roundsData } = await db
-        .from("rounds")
-        .select("id, status")
-        .eq("child_id", child.id);
-      const roundsPlayed = (roundsData ?? []).filter((r) => r.status === "completed").length;
-      const roundIds = (roundsData ?? []).map((r) => r.id);
+      const rounds = await query<{ id: string; status: string }>(
+        "SELECT id, status FROM rounds WHERE child_id = $1",
+        [child.id]
+      );
+      const roundsPlayed = rounds.filter((r) => r.status === "completed").length;
+      const roundIds = rounds.map((r) => r.id);
 
       const byCategory = new Map<string, CategoryStat>();
-      const answered =
-        roundIds.length > 0
-          ? (
-              await db
-                .from("round_questions")
-                .select("category, is_correct")
-                .in("round_id", roundIds)
-                .not("is_correct", "is", null)
-            ).data
-          : [];
-      for (const row of answered ?? []) {
-        const cat = row.category as string;
-        const entry = byCategory.get(cat) ?? { category: cat, correct: 0, total: 0 };
-        entry.total++;
-        if (row.is_correct) entry.correct++;
-        byCategory.set(cat, entry);
+      if (roundIds.length > 0) {
+        const answered = await query<{ category: string; is_correct: boolean }>(
+          `SELECT category, is_correct FROM round_questions
+           WHERE round_id = ANY($1::uuid[]) AND is_correct IS NOT NULL`,
+          [roundIds]
+        );
+        for (const row of answered) {
+          const entry = byCategory.get(row.category) ?? { category: row.category, correct: 0, total: 0 };
+          entry.total++;
+          if (row.is_correct) entry.correct++;
+          byCategory.set(row.category, entry);
+        }
       }
 
       return {

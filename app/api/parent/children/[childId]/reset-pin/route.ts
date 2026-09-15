@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
-import { requireParent } from "@/lib/supabaseServerAuth";
+import { queryOne } from "@/lib/db";
+import { requireParent } from "@/lib/requireParent";
 import { hashPin } from "@/lib/pin";
+import type { ChildRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +17,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ childId
     return NextResponse.json({ error: "A 4-6 digit pin is required." }, { status: 400 });
   }
 
-  const db = supabaseAdmin();
-  const { data: child } = await db.from("children").select("id, parent_id").eq("id", childId).single();
+  const child = await queryOne<Pick<ChildRow, "id" | "parent_id">>(
+    "SELECT id, parent_id FROM children WHERE id = $1",
+    [childId]
+  );
   if (!child || child.parent_id !== parent.id) {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
 
-  const { error } = await db.from("children").update({ pin_hash: hashPin(pin) }).eq("id", childId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await queryOne("UPDATE children SET pin_hash = $1 WHERE id = $2", [hashPin(pin), childId]);
   return NextResponse.json({ ok: true });
 }

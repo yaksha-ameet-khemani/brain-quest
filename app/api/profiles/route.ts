@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
-import { requireParent } from "@/lib/supabaseServerAuth";
+import { query, queryOne } from "@/lib/db";
+import { requireParent } from "@/lib/requireParent";
 import { hashPin } from "@/lib/pin";
+import type { ChildRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -10,15 +11,10 @@ export const dynamic = "force-dynamic";
 // deployment (see docs/SETUP.md), so every child in the table is shown; it
 // is not a multi-family public listing.
 export async function GET() {
-  const { data, error } = await supabaseAdmin()
-    .from("children")
-    .select("id, name, avatar, level")
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-  return NextResponse.json({ children: data });
+  const children = await query<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
+    "SELECT id, name, avatar, level FROM children ORDER BY created_at ASC"
+  );
+  return NextResponse.json({ children });
 }
 
 // POST: create a new kid profile. Parent-only.
@@ -41,20 +37,14 @@ export async function POST(req: Request) {
     );
   }
 
-  const { data, error } = await supabaseAdmin()
-    .from("children")
-    .insert({
-      parent_id: parent.id,
-      name,
-      level,
-      avatar,
-      pin_hash: hashPin(pin),
-    })
-    .select("id, name, avatar, level")
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const child = await queryOne<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
+    `INSERT INTO children (parent_id, name, level, avatar, pin_hash)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, name, avatar, level`,
+    [parent.id, name, level, avatar, hashPin(pin)]
+  );
+  if (!child) {
+    return NextResponse.json({ error: "Could not create profile." }, { status: 500 });
   }
-  return NextResponse.json({ child: data }, { status: 201 });
+  return NextResponse.json({ child }, { status: 201 });
 }

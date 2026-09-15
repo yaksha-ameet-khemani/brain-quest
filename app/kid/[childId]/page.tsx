@@ -1,16 +1,16 @@
 import { notFound } from "next/navigation";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { queryOne } from "@/lib/db";
+import type { ChildRow } from "@/lib/types";
 import PinEntry from "@/components/PinEntry";
 
 export const dynamic = "force-dynamic";
 
 export default async function KidLoginPage({ params }: { params: Promise<{ childId: string }> }) {
   const { childId } = await params;
-  const { data: child } = await supabaseAdmin()
-    .from("children")
-    .select("id, name, avatar")
-    .eq("id", childId)
-    .single();
+  const child = await queryOne<Pick<ChildRow, "id" | "name" | "avatar">>(
+    "SELECT id, name, avatar FROM children WHERE id = $1",
+    [childId]
+  );
 
   if (!child) notFound();
 

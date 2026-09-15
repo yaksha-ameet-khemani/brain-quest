@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
-import { requireParent } from "@/lib/supabaseServerAuth";
+import { query, queryOne } from "@/lib/db";
+import { requireParent } from "@/lib/requireParent";
+import type { RewardRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -8,13 +9,10 @@ export const dynamic = "force-dynamic";
 // readable without a session (kids see it right after logging in, but there's
 // no harm in the catalog itself being visible).
 export async function GET() {
-  const { data, error } = await supabaseAdmin()
-    .from("rewards")
-    .select("id, name, cost, emoji")
-    .eq("active", true)
-    .order("cost", { ascending: true });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ rewards: data });
+  const rewards = await query<Pick<RewardRow, "id" | "name" | "cost" | "emoji">>(
+    "SELECT id, name, cost, emoji FROM rewards WHERE active = true ORDER BY cost ASC"
+  );
+  return NextResponse.json({ rewards });
 }
 
 // POST: add a new reward to the catalog. Parent-only.
@@ -31,11 +29,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "name and a positive integer cost are required." }, { status: 400 });
   }
 
-  const { data, error } = await supabaseAdmin()
-    .from("rewards")
-    .insert({ name, cost, emoji })
-    .select("id, name, cost, emoji")
-    .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ reward: data }, { status: 201 });
+  const reward = await queryOne<Pick<RewardRow, "id" | "name" | "cost" | "emoji">>(
+    "INSERT INTO rewards (name, cost, emoji) VALUES ($1, $2, $3) RETURNING id, name, cost, emoji",
+    [name, cost, emoji]
+  );
+  if (!reward) return NextResponse.json({ error: "Could not create reward." }, { status: 500 });
+  return NextResponse.json({ reward }, { status: 201 });
 }

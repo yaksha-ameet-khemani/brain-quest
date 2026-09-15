@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { query, queryOne, withTransaction } from "@/lib/db";
 import { requireKid } from "@/lib/requireKid";
 import { getBalance } from "@/lib/balance";
 import {
@@ -13,6 +13,7 @@ import {
   STREAK_THRESHOLD,
   type Level,
 } from "@/lib/config";
+import type { RoundQuestionRow, RoundRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -34,12 +35,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ roundId
     return NextResponse.json({ error: "position and selectedIndex are required." }, { status: 400 });
   }
 
-  const db = supabaseAdmin();
-  const { data: round } = await db
-    .from("rounds")
-    .select("id, child_id, level, status, correct_count, points_awarded")
-    .eq("id", roundId)
-    .single();
+  const round = await queryOne<
+    Pick<RoundRow, "id" | "child_id" | "level" | "status" | "correct_count" | "points_awarded">
+  >(
+    "SELECT id, child_id, level, status, correct_count, points_awarded FROM rounds WHERE id = $1",
+    [roundId]
+  );
   if (!round || round.child_id !== kid.childId) {
     return NextResponse.json({ error: "Round not found." }, { status: 404 });
   }
@@ -47,12 +48,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ roundId
     return NextResponse.json({ error: "This round is already finished." }, { status: 409 });
   }
 
-  const { data: rq } = await db
-    .from("round_questions")
-    .select("position, correct_index, explanation, shown_at, answered_at, category")
-    .eq("round_id", roundId)
-    .eq("position", position)
-    .single();
+  const rq = await queryOne<
+    Pick<RoundQuestionRow, "position" | "correct_index" | "explanation" | "shown_at" | "answered_at" | "category">
+  >(
+    "SELECT position, correct_index, explanation, shown_at, answered_at, category FROM round_questions WHERE round_id = $1 AND position = $2",
+    [roundId, position]
+  );
   if (!rq) return NextResponse.json({ error: "Question not found." }, { status: 404 });
   if (rq.answered_at) return NextResponse.json({ error: "Already answered." }, { status: 409 });
   if (!rq.shown_at) return NextResponse.json({ error: "Question was never served." }, { status: 409 });
@@ -70,15 +71,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ roundId
   let pointsAwarded = 0;
   let streak = 0;
   if (isCorrect) {
-    const { data: priorAnswers } = await db
-      .from("round_questions")
-      .select("position, is_correct")
-      .eq("round_id", roundId)
-      .lt("position", position)
-      .order("position", { ascending: false });
+    const priorAnswers = await query<Pick<RoundQuestionRow, "position" | "is_correct">>(
+      "SELECT position, is_correct FROM round_questions WHERE round_id = $1 AND position < $2 ORDER BY position DESC",
+      [roundId, position]
+    );
 
     streak = 1;
-    for (const prior of priorAnswers ?? []) {
+    for (const prior of priorAnswers) {
       if (prior.is_correct) streak++;
       else break;
     }
@@ -91,61 +90,48 @@ export async function POST(req: Request, { params }: { params: Promise<{ roundId
   }
 
   const answeredAt = new Date().toISOString();
-  await db
-    .from("round_questions")
-    .update({
-      answered_at: answeredAt,
-      selected_index: selectedIndex,
-      is_correct: isCorrect,
-      points_awarded: pointsAwarded,
-    })
-    .eq("round_id", roundId)
-    .eq("position", position);
-
   const newCorrectCount = round.correct_count + (isCorrect ? 1 : 0);
   const newPointsAwarded = round.points_awarded + pointsAwarded;
-
-  if (pointsAwarded > 0) {
-    await db.from("point_transactions").insert({
-      child_id: kid.childId,
-      type: "earn",
-      amount: pointsAwarded,
-      reason: `Correct answer (round ${roundId}, question ${position + 1})`,
-      round_id: roundId,
-    });
-  }
-
   const isLastQuestion = position === QUESTIONS_PER_ROUND - 1;
-  let perfectBonus = 0;
-  let roundComplete = false;
+  const roundComplete = isLastQuestion;
+  const perfectBonus = isLastQuestion && newCorrectCount === QUESTIONS_PER_ROUND ? PERFECT_ROUND_BONUS[level] : 0;
 
-  if (isLastQuestion) {
-    roundComplete = true;
-    if (newCorrectCount === QUESTIONS_PER_ROUND) {
-      perfectBonus = PERFECT_ROUND_BONUS[level];
-      await db.from("point_transactions").insert({
-        child_id: kid.childId,
-        type: "earn",
-        amount: perfectBonus,
-        reason: `Perfect round bonus (round ${roundId})`,
-        round_id: roundId,
-      });
+  await withTransaction(async (tx) => {
+    await tx.query(
+      `UPDATE round_questions SET answered_at = $1, selected_index = $2, is_correct = $3, points_awarded = $4
+       WHERE round_id = $5 AND position = $6`,
+      [answeredAt, selectedIndex, isCorrect, pointsAwarded, roundId, position]
+    );
+
+    if (pointsAwarded > 0) {
+      await tx.query(
+        `INSERT INTO point_transactions (child_id, type, amount, reason, round_id)
+         VALUES ($1, 'earn', $2, $3, $4)`,
+        [kid.childId, pointsAwarded, `Correct answer (round ${roundId}, question ${position + 1})`, roundId]
+      );
     }
-    await db
-      .from("rounds")
-      .update({
-        status: "completed",
-        completed_at: answeredAt,
-        correct_count: newCorrectCount,
-        points_awarded: newPointsAwarded + perfectBonus,
-      })
-      .eq("id", roundId);
-  } else {
-    await db
-      .from("rounds")
-      .update({ correct_count: newCorrectCount, points_awarded: newPointsAwarded })
-      .eq("id", roundId);
-  }
+
+    if (isLastQuestion) {
+      if (perfectBonus > 0) {
+        await tx.query(
+          `INSERT INTO point_transactions (child_id, type, amount, reason, round_id)
+           VALUES ($1, 'earn', $2, $3, $4)`,
+          [kid.childId, perfectBonus, `Perfect round bonus (round ${roundId})`, roundId]
+        );
+      }
+      await tx.query(
+        `UPDATE rounds SET status = 'completed', completed_at = $1, correct_count = $2, points_awarded = $3
+         WHERE id = $4`,
+        [answeredAt, newCorrectCount, newPointsAwarded + perfectBonus, roundId]
+      );
+    } else {
+      await tx.query("UPDATE rounds SET correct_count = $1, points_awarded = $2 WHERE id = $3", [
+        newCorrectCount,
+        newPointsAwarded,
+        roundId,
+      ]);
+    }
+  });
 
   const newBalance = await getBalance(kid.childId);
 

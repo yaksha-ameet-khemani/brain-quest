@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { queryOne } from "@/lib/db";
 import { verifyPin } from "@/lib/pin";
 import { createKidSessionToken, KID_COOKIE_NAME, kidCookieOptions } from "@/lib/kidSession";
 import { checkRateLimit } from "@/lib/rateLimit";
+import type { ChildRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -24,13 +25,12 @@ export async function POST(req: Request) {
     );
   }
 
-  const { data: child, error } = await supabaseAdmin()
-    .from("children")
-    .select("id, name, avatar, level, pin_hash")
-    .eq("id", childId)
-    .single();
+  const child = await queryOne<ChildRow>(
+    "SELECT id, name, avatar, level, pin_hash FROM children WHERE id = $1",
+    [childId]
+  );
 
-  if (error || !child || !verifyPin(pin, child.pin_hash)) {
+  if (!child || !verifyPin(pin, child.pin_hash)) {
     return NextResponse.json({ error: "Incorrect PIN." }, { status: 401 });
   }
 
