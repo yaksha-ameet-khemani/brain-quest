@@ -120,15 +120,20 @@ async function loadRoundForResume(roundId: string) {
   );
   if (!nextQ) return null;
 
-  let shownAt = nextQ.shown_at;
-  if (!shownAt) {
-    shownAt = new Date().toISOString();
-    await queryOne("UPDATE round_questions SET shown_at = $1 WHERE round_id = $2 AND position = $3", [
-      shownAt,
-      roundId,
-      nextQ.position,
-    ]);
-  }
+  // Always refresh shown_at to right now, not just when it was never set.
+  // shown_at means "when did the browser actually last see this question" -
+  // if we only set it once, resuming a round after any gap (walked away,
+  // closed the tab, tested the app across sessions) hands the kid a question
+  // whose timer already expired before they ever saw it this time, so their
+  // very first answer instantly "times out" regardless of correctness. A kid
+  // reloading the page to buy more thinking time is a fine trade-off against
+  // that.
+  const shownAt = new Date().toISOString();
+  await queryOne("UPDATE round_questions SET shown_at = $1 WHERE round_id = $2 AND position = $3", [
+    shownAt,
+    roundId,
+    nextQ.position,
+  ]);
 
   const level = round.level as Level;
   return {

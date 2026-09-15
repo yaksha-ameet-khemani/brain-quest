@@ -43,15 +43,14 @@ export async function GET(
     return NextResponse.json({ error: "Wrong question position." }, { status: 409 });
   }
 
-  let shownAt = nextUnanswered.shown_at;
-  if (!shownAt) {
-    shownAt = new Date().toISOString();
-    await queryOne("UPDATE round_questions SET shown_at = $1 WHERE round_id = $2 AND position = $3", [
-      shownAt,
-      roundId,
-      pos,
-    ]);
-  }
+  // Always refresh shown_at to now - see the matching comment in
+  // app/api/round/start/route.ts for why this can't be "only if null".
+  const shownAt = new Date().toISOString();
+  await queryOne("UPDATE round_questions SET shown_at = $1 WHERE round_id = $2 AND position = $3", [
+    shownAt,
+    roundId,
+    pos,
+  ]);
 
   return NextResponse.json({
     question: sanitizeQuestion({
