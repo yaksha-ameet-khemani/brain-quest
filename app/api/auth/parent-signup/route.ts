@@ -8,15 +8,15 @@ export const dynamic = "force-dynamic";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// This is a single-household app, so exactly one parent account is allowed,
-// ever. The first successful sign-up locks the door behind it - no manual
-// "disable public sign-ups" dashboard toggle to remember, unlike the old
-// Supabase setup.
+// The very first account ever created becomes the admin, permanently, and
+// public sign-up closes the instant it exists - every other parent account
+// from then on is created BY the admin (see app/api/admin/parents), not by
+// self-service sign-up. No dashboard toggle to remember.
 export async function POST(req: Request) {
   const { count } = (await queryOne<{ count: string }>("SELECT count(*) FROM parents")) ?? { count: "0" };
   if (Number(count) > 0) {
     return NextResponse.json(
-      { error: "A parent account already exists. Sign in instead." },
+      { error: "Sign-up is closed. Ask the admin to create your account." },
       { status: 403 }
     );
   }
@@ -32,8 +32,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
   }
 
-  const parent = await queryOne<Pick<ParentRow, "id" | "email">>(
-    "INSERT INTO parents (email, password_hash) VALUES ($1, $2) RETURNING id, email",
+  const parent = await queryOne<Pick<ParentRow, "id" | "email" | "role">>(
+    "INSERT INTO parents (email, password_hash, role) VALUES ($1, $2, 'admin') RETURNING id, email, role",
     [email, hashPin(password)]
   );
   if (!parent) {

@@ -40,14 +40,22 @@ npm install
 npm run dev
 ```
 
-## 4. Create the parent account
+## 4. Create your admin account
 
 Open `/login/parent` and create your account (email + password, at least 8
-characters). This app allows exactly one parent account - the moment it's
-created, sign-ups close automatically (enforced by the app itself, no
-dashboard setting to remember). There's no email confirmation step, since
+characters). **The very first account created becomes the admin, forever** -
+the moment it exists, public sign-up closes automatically (enforced by the
+app itself, no dashboard setting to remember) and the admin account can
+never be deleted through the app. There's no email confirmation step, since
 there's no email service in this $0 stack; that's fine for a private
-single-household app.
+household app.
+
+Need another parent to have their own login (e.g. a spouse)? Sign in as
+admin, go to **🛡️ Manage parent accounts** on the dashboard, and add them
+there - that's the only way a second parent account gets created, since
+public sign-up is closed. Admin and parent accounts see the same
+child data (all parents share one pool of children); the admin's only extra
+power is managing other parent accounts.
 
 ## 5. Deploy to Vercel (free)
 

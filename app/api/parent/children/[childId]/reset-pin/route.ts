@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { requireParent } from "@/lib/requireParent";
 import { hashPin } from "@/lib/pin";
-import type { ChildRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +16,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ childId
     return NextResponse.json({ error: "A 4-6 digit pin is required." }, { status: 400 });
   }
 
-  const child = await queryOne<Pick<ChildRow, "id" | "parent_id">>(
-    "SELECT id, parent_id FROM children WHERE id = $1",
-    [childId]
-  );
-  if (!child || child.parent_id !== parent.id) {
-    return NextResponse.json({ error: "Not found." }, { status: 404 });
-  }
+  const existing = await queryOne("SELECT id FROM children WHERE id = $1", [childId]);
+  if (!existing) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
   await queryOne("UPDATE children SET pin_hash = $1 WHERE id = $2", [hashPin(pin), childId]);
   return NextResponse.json({ ok: true });

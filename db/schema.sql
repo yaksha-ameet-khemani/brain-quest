@@ -11,27 +11,38 @@
 -- (email + hashed password, our own session cookie - see lib/requireParent.ts);
 -- kids are rows in `children` with a hashed PIN checked by
 -- /api/auth/kid-login, also our own code, not a third-party auth service.
+--
+-- Roles: `parents.role` is 'admin' or 'parent'. The first account ever
+-- created becomes admin automatically (see app/api/auth/parent-signup) and
+-- public sign-up closes forever after that - every other parent account is
+-- created BY the admin (see app/api/admin/parents). There can only ever be
+-- one admin row (enforced below by a partial unique index) and the app
+-- refuses to ever delete it. All parents (admin included) share the same
+-- pool of children - there is no per-parent ownership split.
 
 create extension if not exists pgcrypto;
 
 -- ---------------------------------------------------------------------------
--- Parents. Deliberately capped at one row by application logic (see
--- app/api/auth/parent-signup) - this is a single-household app, not a
--- multi-tenant SaaS, so the first successful sign-up locks the door.
+-- Parents (includes the one admin). Exactly one row may have role='admin' -
+-- enforced by the partial unique index below, not just app logic.
 -- ---------------------------------------------------------------------------
 create table parents (
   id uuid primary key default gen_random_uuid(),
   email text not null unique,
   password_hash text not null,
+  role text not null default 'parent' check (role in ('admin', 'parent')),
   created_at timestamptz not null default now()
 );
+create unique index parents_single_admin_idx on parents (role) where role = 'admin';
 
 -- ---------------------------------------------------------------------------
--- Children (kid profiles). One row per kid, owned by the parent who created it.
+-- Children (kid profiles). `created_by` just records who added them, for
+-- reference - it does not restrict who can view/manage the child, since all
+-- parents (and admin) share visibility of every child.
 -- ---------------------------------------------------------------------------
 create table children (
   id uuid primary key default gen_random_uuid(),
-  parent_id uuid not null references parents (id) on delete cascade,
+  created_by uuid references parents (id) on delete set null,
   name text not null,
   avatar text not null default '🙂',
   level smallint not null check (level in (1, 2)), -- 1 = younger / 2 = older group, not tied to a school grade number
@@ -40,11 +51,23 @@ create table children (
 );
 
 -- ---------------------------------------------------------------------------
+-- One row per successful kid PIN login - powers "last logged in" (public)
+-- and full login history (admin/parent).
+-- ---------------------------------------------------------------------------
+create table child_logins (
+  id uuid primary key default gen_random_uuid(),
+  child_id uuid not null references children (id) on delete cascade,
+  logged_in_at timestamptz not null default now()
+);
+create index child_logins_child_idx on child_logins (child_id, logged_in_at);
+
+-- ---------------------------------------------------------------------------
 -- Question bank (curated logic / riddle / spatial questions). Math questions
 -- are generated on the fly from templates (lib/mathQuestions.ts) instead of
 -- stored here, so the bank never "runs out" of math content.
 -- correct_option_index is NEVER exposed through anything the browser can
--- query directly - only read server-side when building a round.
+-- query directly - only read server-side when building a round, or by an
+-- authenticated admin/parent reviewing a child's answer log after the fact.
 -- ---------------------------------------------------------------------------
 create table questions (
   id uuid primary key default gen_random_uuid(),
@@ -78,7 +101,11 @@ create index rounds_child_started_idx on rounds (child_id, started_at);
 -- round, WITH OPTIONS ALREADY SHUFFLED for that serving, so the stored
 -- option order in `questions` never leaks a pattern to a repeat player.
 -- Generated (math) questions are snapshotted here in full, since they don't
--- exist anywhere else.
+-- exist anywhere else. This table doubles as the full answer log an
+-- admin/parent can review per child: question_text/options/correct_index/
+-- selected_index/is_correct/shown_at/answered_at is everything needed to
+-- show "what they were asked, what they picked, was it right, how long did
+-- it take".
 -- ---------------------------------------------------------------------------
 create table round_questions (
   id uuid primary key default gen_random_uuid(),

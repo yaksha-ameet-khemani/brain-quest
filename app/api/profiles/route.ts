@@ -17,7 +17,8 @@ export async function GET() {
   return NextResponse.json({ children });
 }
 
-// POST: create a new kid profile. Parent-only.
+// POST: create a new kid profile. Any signed-in parent or admin - all
+// parents share the same pool of children, there's no per-parent ownership.
 export async function POST(req: Request) {
   const parent = await requireParent();
   if (!parent) {
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
   }
 
   const child = await queryOne<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
-    `INSERT INTO children (parent_id, name, level, avatar, pin_hash)
+    `INSERT INTO children (created_by, name, level, avatar, pin_hash)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING id, name, avatar, level`,
     [parent.id, name, level, avatar, hashPin(pin)]

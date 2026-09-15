@@ -15,14 +15,14 @@ interface CategoryStat {
 // The actual point of a parent dashboard isn't "how many points does each
 // kid have" (the kid screen already shows that) - it's "which categories is
 // each kid weak in", so you know what to nudge them toward. This endpoint
-// does that aggregation.
+// does that aggregation. All parents (and admin) share the same pool of
+// children - there's no per-parent filter here.
 export async function GET() {
   const parent = await requireParent();
   if (!parent) return NextResponse.json({ error: "Parent sign-in required." }, { status: 401 });
 
   const children = await query<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
-    "SELECT id, name, avatar, level FROM children WHERE parent_id = $1 ORDER BY created_at ASC",
-    [parent.id]
+    "SELECT id, name, avatar, level FROM children ORDER BY created_at ASC"
   );
 
   const overview = await Promise.all(

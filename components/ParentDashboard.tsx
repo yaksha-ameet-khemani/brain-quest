@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -23,25 +24,48 @@ interface Redemption {
   requested_at: string;
   child?: { name: string; avatar: string } | null;
 }
+interface ParentAccount {
+  id: string;
+  email: string;
+  role: "admin" | "parent";
+  created_at: string;
+}
 
-export default function ParentDashboard({ parentEmail }: { parentEmail: string }) {
+export default function ParentDashboard({
+  parentEmail,
+  role,
+}: {
+  parentEmail: string;
+  role: "admin" | "parent";
+}) {
   const router = useRouter();
   const [overview, setOverview] = useState<ChildOverview[]>([]);
   const [redemptions, setRedemptions] = useState<Redemption[]>([]);
+  const [parents, setParents] = useState<ParentAccount[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const [newChild, setNewChild] = useState({ name: "", level: "1", pin: "", avatar: "🙂" });
   const [creating, setCreating] = useState(false);
 
+  const [newParent, setNewParent] = useState({ email: "", password: "" });
+  const [creatingParent, setCreatingParent] = useState(false);
+  const [parentMessage, setParentMessage] = useState<string | null>(null);
+
   async function refresh() {
-    const [ov, rd] = await Promise.all([fetch("/api/parent/overview"), fetch("/api/parent/redemptions")]);
+    const [ov, rd, pa] = await Promise.all([
+      fetch("/api/parent/overview"),
+      fetch("/api/parent/redemptions"),
+      role === "admin" ? fetch("/api/admin/parents") : Promise.resolve(null),
+    ]);
     if (ov.ok) setOverview((await ov.json()).overview);
     if (rd.ok) setRedemptions((await rd.json()).redemptions);
+    if (pa?.ok) setParents((await pa.json()).parents);
   }
 
   useEffect(() => {
     refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function signOut() {
@@ -92,6 +116,44 @@ export default function ParentDashboard({ parentEmail }: { parentEmail: string }
     }
   }
 
+  async function addParent(e: FormEvent) {
+    e.preventDefault();
+    setParentMessage(null);
+    setCreatingParent(true);
+    try {
+      const res = await fetch("/api/admin/parents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newParent),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setParentMessage(data.error ?? "Could not create account.");
+        return;
+      }
+      setNewParent({ email: "", password: "" });
+      setParentMessage(`Added ${data.parent.email}!`);
+      await refresh();
+    } finally {
+      setCreatingParent(false);
+    }
+  }
+
+  async function removeParent(id: string) {
+    setBusy(id);
+    try {
+      const res = await fetch(`/api/admin/parents/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        setParentMessage(data.error ?? "Could not remove account.");
+        return;
+      }
+      await refresh();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const pending = redemptions.filter((r) => r.status === "pending");
   const decided = redemptions.filter((r) => r.status !== "pending").slice(0, 10);
 
@@ -99,7 +161,9 @@ export default function ParentDashboard({ parentEmail }: { parentEmail: string }
     <main className="flex flex-col gap-8 pt-6">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">👤 Parent Dashboard</h1>
+          <h1 className="text-2xl font-bold">
+            {role === "admin" ? "🛡️ Admin" : "👤 Parent"} Dashboard
+          </h1>
           <p className="text-sm text-slate-500">{parentEmail}</p>
         </div>
         <button onClick={signOut} className="text-sm text-slate-500 underline">
@@ -191,6 +255,12 @@ export default function ParentDashboard({ parentEmail }: { parentEmail: string }
                   ))}
                 </div>
               )}
+              <Link
+                href={`/parent/children/${o.child.id}`}
+                className="mt-3 inline-block text-xs font-semibold text-brand-600 underline"
+              >
+                View full question log →
+              </Link>
             </div>
           ))}
           {overview.length === 0 && <p className="text-sm text-slate-500">No kid profiles yet - add one below.</p>}
@@ -242,6 +312,68 @@ export default function ParentDashboard({ parentEmail }: { parentEmail: string }
           </button>
         </form>
       </section>
+
+      {role === "admin" && (
+        <section>
+          <h2 className="mb-3 text-lg font-bold">🛡️ Manage parent accounts</h2>
+          <div className="grid gap-2">
+            {parents.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-center justify-between rounded-xl bg-white p-3 text-sm shadow-sm ring-1 ring-slate-100"
+              >
+                <span>
+                  {p.email}{" "}
+                  {p.role === "admin" && (
+                    <span className="ml-1 rounded-full bg-slate-800 px-2 py-0.5 text-xs text-white">admin</span>
+                  )}
+                </span>
+                {p.role !== "admin" && (
+                  <button
+                    disabled={busy === p.id}
+                    onClick={() => removeParent(p.id)}
+                    className="text-xs font-semibold text-rose-500 underline"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <form
+            onSubmit={addParent}
+            className="mt-3 grid gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100"
+          >
+            <p className="text-sm font-semibold">Add another parent</p>
+            <input
+              type="email"
+              required
+              placeholder="Email"
+              value={newParent.email}
+              onChange={(e) => setNewParent((s) => ({ ...s, email: e.target.value }))}
+              className="rounded-xl border border-slate-200 p-3"
+            />
+            <input
+              type="password"
+              required
+              minLength={8}
+              placeholder="Password (min. 8 characters)"
+              value={newParent.password}
+              onChange={(e) => setNewParent((s) => ({ ...s, password: e.target.value }))}
+              className="rounded-xl border border-slate-200 p-3"
+            />
+            {parentMessage && <p className="text-sm text-brand-700">{parentMessage}</p>}
+            <button
+              type="submit"
+              disabled={creatingParent}
+              className="rounded-xl bg-slate-800 p-3 font-semibold text-white disabled:opacity-50"
+            >
+              {creatingParent ? "…" : "Add parent"}
+            </button>
+          </form>
+        </section>
+      )}
     </main>
   );
 }

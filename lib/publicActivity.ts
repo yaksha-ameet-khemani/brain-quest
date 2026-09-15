@@ -1,0 +1,71 @@
+import "server-only";
+import { query } from "@/lib/db";
+
+export interface PublicActivity {
+  id: string;
+  name: string;
+  avatar: string;
+  level: 1 | 2;
+  lastLogin: string | null;
+  totalAttempted: number;
+  correct: number;
+  wrong: number;
+  totalTimeSeconds: number;
+}
+
+interface Row {
+  id: string;
+  name: string;
+  avatar: string;
+  level: 1 | 2;
+  last_login: string | null;
+  total_attempted: string;
+  correct: string;
+  wrong: string;
+  total_time_seconds: string;
+}
+
+/** Aggregate-only activity summary per child - last login, attempted/
+ * correct/wrong counts, total time spent answering questions. Deliberately
+ * safe to expose without auth (see app/api/public/activity and
+ * docs/blueprint.md) - no question content or answers, just counts. */
+export async function getPublicActivity(): Promise<PublicActivity[]> {
+  const rows = await query<Row>(`
+    SELECT
+      c.id, c.name, c.avatar, c.level,
+      (SELECT max(logged_in_at) FROM child_logins cl WHERE cl.child_id = c.id) AS last_login,
+      COALESCE(stats.total_attempted, 0) AS total_attempted,
+      COALESCE(stats.correct, 0) AS correct,
+      COALESCE(stats.wrong, 0) AS wrong,
+      COALESCE(stats.total_time_seconds, 0) AS total_time_seconds
+    FROM children c
+    LEFT JOIN (
+      SELECT
+        r.child_id,
+        count(*) FILTER (WHERE rq.answered_at IS NOT NULL) AS total_attempted,
+        count(*) FILTER (WHERE rq.is_correct = true) AS correct,
+        count(*) FILTER (WHERE rq.is_correct = false) AS wrong,
+        COALESCE(
+          SUM(EXTRACT(EPOCH FROM (rq.answered_at - rq.shown_at)))
+            FILTER (WHERE rq.answered_at IS NOT NULL AND rq.shown_at IS NOT NULL),
+          0
+        ) AS total_time_seconds
+      FROM round_questions rq
+      JOIN rounds r ON r.id = rq.round_id
+      GROUP BY r.child_id
+    ) stats ON stats.child_id = c.id
+    ORDER BY c.created_at ASC
+  `);
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    avatar: r.avatar,
+    level: r.level,
+    lastLogin: r.last_login,
+    totalAttempted: Number(r.total_attempted),
+    correct: Number(r.correct),
+    wrong: Number(r.wrong),
+    totalTimeSeconds: Math.round(Number(r.total_time_seconds)),
+  }));
+}

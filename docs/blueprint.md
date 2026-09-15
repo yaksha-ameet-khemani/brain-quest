@@ -1,4 +1,4 @@
-# Brain Quest - Blueprint (v3)
+# Brain Quest - Blueprint (v4)
 
 This revises `Kids Logic & Reward Quiz Web Application Blueprint.docx` (the
 original spec) based on a security/gameplay review. The changes are called
@@ -13,6 +13,37 @@ the kid-PIN pattern below) instead of a hosted auth service - see "Real auth
 for the parent" below. Everything else - the schema, the economy, the
 security model of "nothing but our server ever touches the database" - is
 unchanged; Postgres is Postgres either way.
+
+**v4 update - roles and activity tracking:**
+- `parents.role` is `'admin'` or `'parent'`. The first account ever created
+  becomes admin automatically (a partial unique index on `parents` makes a
+  second admin impossible at the database level, not just in app code) and
+  can never be deleted. Every other parent account is created by the admin
+  from the dashboard - public sign-up stays closed forever once the admin
+  exists.
+- All parents (admin included) share one pool of children - there's no
+  per-parent ownership split anymore. Any parent can add/edit/delete any
+  child, approve any redemption, and see every child's data.
+- `child_logins` records every successful kid PIN login, powering "last
+  logged in" on both the public summary and the admin/parent detail view.
+- Two tiers of visibility, by deliberate design:
+  - **Public, no login at all** (`/` homepage, `/api/public/activity`):
+    aggregate-only per child - last login, total questions attempted,
+    correct, wrong, total time spent. No question content, no answers.
+  - **Parent/admin, logged in** (`/parent/children/[id]`,
+    `/api/parent/children/[id]/log`): the full per-question log - exact
+    question text, what the kid picked, the correct answer, right/wrong,
+    and time spent on that specific question. `round_questions` already
+    stored everything needed for this (it's the same frozen per-serving
+    snapshot used for grading); this just exposes it to an authenticated
+    parent/admin instead of only ever being read server-side during
+    grading.
+- The public tier is a deliberate exception to this app's usual "nothing is
+  exposed without a session" rule, made explicitly at the user's request and
+  with the same reasoning applied earlier to making the GitHub repo public:
+  low-traffic private deployment, URL not shared beyond the family, and the
+  public tier is aggregate-only (no question content, no individual answers)
+  - the sensitive detail stays behind the parent/admin login.
 
 ## Goal
 

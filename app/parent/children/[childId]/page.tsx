@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { requireParent } from "@/lib/requireParent";
-import ParentDashboard from "@/components/ParentDashboard";
+import ChildLog from "@/components/ChildLog";
 
 export const dynamic = "force-dynamic";
 
-export default async function ParentPage() {
+export default async function ChildLogPage({ params }: { params: Promise<{ childId: string }> }) {
+  const { childId } = await params;
   const parent = await requireParent();
   if (!parent) redirect("/login/parent");
 
-  return <ParentDashboard parentEmail={parent.email} role={parent.role} />;
+  return <ChildLog childId={childId} />;
 }

@@ -2,21 +2,30 @@
 // Supabase-style generated Database type) since we talk to Postgres directly
 // now - update these alongside schema.sql if a column changes.
 
+export type ParentRole = "admin" | "parent";
+
 export interface ParentRow {
   id: string;
   email: string;
   password_hash: string;
+  role: ParentRole;
   created_at: string;
 }
 
 export interface ChildRow {
   id: string;
-  parent_id: string;
+  created_by: string | null;
   name: string;
   avatar: string;
   level: 1 | 2;
   pin_hash: string;
   created_at: string;
+}
+
+export interface ChildLoginRow {
+  id: string;
+  child_id: string;
+  logged_in_at: string;
 }
 
 export interface QuestionRow {

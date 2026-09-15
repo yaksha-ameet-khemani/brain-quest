@@ -34,6 +34,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Incorrect PIN." }, { status: 401 });
   }
 
+  // Fire-and-forget-ish, but awaited so a failure here surfaces rather than
+  // silently losing a login record - it's one cheap insert.
+  await queryOne("INSERT INTO child_logins (child_id) VALUES ($1)", [child.id]);
+
   const token = createKidSessionToken(child.id);
   const res = NextResponse.json({
     child: { id: child.id, name: child.name, avatar: child.avatar, level: child.level },
