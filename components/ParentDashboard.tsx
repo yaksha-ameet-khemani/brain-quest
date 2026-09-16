@@ -191,20 +191,20 @@ export default function ParentDashboard({
 
   return (
     <main className="flex flex-col gap-8 pt-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">
+      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold sm:text-2xl">
             {role === "admin" ? "🛡️ Admin" : "👤 Parent"} Dashboard
           </h1>
-          <p className="text-sm text-slate-500">{parentEmail}</p>
+          <p className="truncate text-sm text-slate-500">{parentEmail}</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex shrink-0 items-center gap-4">
           {role === "admin" && (
-            <Link href="/parent/questions" className="text-sm font-semibold text-brand-600 underline">
+            <Link href="/parent/questions" className="whitespace-nowrap text-sm font-semibold text-brand-600 underline">
               📚 Question Bank
             </Link>
           )}
-          <button onClick={signOut} className="text-sm text-slate-500 underline">
+          <button onClick={signOut} className="whitespace-nowrap text-sm text-slate-500 underline">
             Sign out
           </button>
         </div>
@@ -215,17 +215,19 @@ export default function ParentDashboard({
         {pending.length === 0 && <p className="text-sm text-slate-500">Nothing waiting on you 🎉</p>}
         <div className="grid gap-3">
           {pending.map((r) => (
-            <div key={r.id} className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
-              <div>
+            <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+              <div className="min-w-0">
                 <p className="flex items-center gap-1.5 font-semibold">
-                  <span className="flex h-5 w-5 items-center justify-center text-base">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center text-base">
                     <Avatar photoDataUrl={r.child?.photoDataUrl} avatar={r.child?.avatar ?? "🙂"} name={r.child?.name} />
                   </span>
-                  {r.child?.name} wants: {r.reward_name}
+                  <span>
+                    {r.child?.name} wants: {r.reward_name}
+                  </span>
                 </p>
                 <p className="text-sm text-slate-500">{r.cost} pts</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex shrink-0 gap-2">
                 <button
                   disabled={busy === r.id}
                   onClick={() => decide(r.id, "approve")}
@@ -250,17 +252,19 @@ export default function ParentDashboard({
             {decided
               .filter((d) => d.status === "approved")
               .map((r) => (
-                <div key={r.id} className="flex items-center justify-between rounded-2xl bg-amber-50 p-4 text-sm ring-1 ring-amber-200">
-                  <span className="flex items-center gap-1.5">
-                    <span className="flex h-5 w-5 items-center justify-center text-base">
+                <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-amber-50 p-4 text-sm ring-1 ring-amber-200">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center text-base">
                       <Avatar photoDataUrl={r.child?.photoDataUrl} avatar={r.child?.avatar ?? "🙂"} name={r.child?.name} />
                     </span>
-                    {r.child?.name}: {r.reward_name} (approved, not yet given)
+                    <span>
+                      {r.child?.name}: {r.reward_name} (approved, not yet given)
+                    </span>
                   </span>
                   <button
                     disabled={busy === r.id}
                     onClick={() => decide(r.id, "fulfill")}
-                    className="rounded-full bg-amber-500 px-3 py-1.5 font-semibold text-white"
+                    className="shrink-0 rounded-full bg-amber-500 px-3 py-1.5 font-semibold text-white"
                   >
                     Mark given
                   </button>
@@ -275,14 +279,16 @@ export default function ParentDashboard({
         <div className="grid gap-4">
           {overview.map((o) => (
             <div key={o.child.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
-              <div className="flex items-center justify-between">
-                <p className="flex items-center gap-1.5 font-semibold">
-                  <span className="flex h-6 w-6 items-center justify-center text-lg">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <p className="flex min-w-0 items-center gap-1.5 font-semibold">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center text-lg">
                     <Avatar photoDataUrl={o.child.photoDataUrl} avatar={o.child.avatar} name={o.child.name} />
                   </span>
-                  {o.child.name} · Level {o.child.level}
+                  <span className="truncate">
+                    {o.child.name} · Level {o.child.level}
+                  </span>
                 </p>
-                <p className="font-bold text-brand-600">{o.balance} pts</p>
+                <p className="shrink-0 font-bold text-brand-600">{o.balance} pts</p>
               </div>
               <p className="mt-1 text-xs text-slate-500">
                 {o.roundsPlayed} rounds completed
@@ -414,12 +420,14 @@ export default function ParentDashboard({
             {parents.map((p) => (
               <div
                 key={p.id}
-                className="flex items-center justify-between rounded-xl bg-white p-3 text-sm shadow-sm ring-1 ring-slate-100"
+                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-white p-3 text-sm shadow-sm ring-1 ring-slate-100"
               >
-                <span>
+                <span className="min-w-0 break-all">
                   {p.email}{" "}
                   {p.role === "admin" && (
-                    <span className="ml-1 rounded-full bg-slate-800 px-2 py-0.5 text-xs text-white">admin</span>
+                    <span className="ml-1 whitespace-nowrap rounded-full bg-slate-800 px-2 py-0.5 text-xs text-white">
+                      admin
+                    </span>
                   )}
                 </span>
                 {p.role !== "admin" && (

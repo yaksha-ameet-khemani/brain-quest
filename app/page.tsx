@@ -22,7 +22,7 @@ export default async function HomePage() {
         <p className="mt-2 text-slate-600">Who&apos;s playing today?</p>
       </header>
 
-      <section className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
         {children.map((child) => (
           <Link
             key={child.id}
@@ -51,14 +51,14 @@ export default async function HomePage() {
           <div className="grid gap-3">
             {activity.map((a) => (
               <div key={a.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
-                <div className="flex items-center justify-between">
-                  <p className="flex items-center gap-2 font-semibold">
-                    <span className="flex h-6 w-6 items-center justify-center text-xl">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <p className="flex min-w-0 items-center gap-2 font-semibold">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center text-xl">
                       <Avatar photoDataUrl={a.photoDataUrl} avatar={a.avatar} name={a.name} />
                     </span>
-                    {a.name}
+                    <span className="truncate">{a.name}</span>
                   </p>
-                  <p className="text-xs text-slate-400">Last login: {formatRelativeTime(a.lastLogin)}</p>
+                  <p className="shrink-0 text-xs text-slate-400">Last login: {formatRelativeTime(a.lastLogin)}</p>
                 </div>
                 <div className="mt-2 grid grid-cols-4 gap-2 text-center text-xs">
                   <div className="rounded-lg bg-slate-50 p-2">
