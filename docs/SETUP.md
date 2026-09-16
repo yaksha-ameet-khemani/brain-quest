@@ -105,6 +105,42 @@ entry per kid (name, an optional real photo or an emoji avatar, level, a
 pick which parent the child belongs to. They pick their profile from the
 home page and enter that PIN to play.
 
+## 8. Automated backups (optional, but recommended, still free)
+
+`.github/workflows/backup.yml` dumps every table to JSON daily - but it
+needs somewhere private to put that dump, since this app's own repo is
+public and a backup necessarily contains family PII (names, emails, hashed
+passwords/PINs, kid photos). Until you do this, the workflow runs on
+schedule and safely no-ops (you'll see a skipped run with a warning in the
+Actions tab) - the app itself is completely unaffected either way.
+
+1. Create a **new, separate, private** GitHub repo to hold backups only
+   (e.g. `brain-quest-backups`) - private repos are free. It can start
+   completely empty.
+2. Create a fine-grained personal access token
+   (https://github.com/settings/personal-access-tokens/new) scoped to
+   **only that one backup repo**, with **Contents: Read and write**
+   permission and nothing else. Give it whatever expiry you're comfortable
+   re-creating later (a PAT can always be regenerated and the secret
+   updated).
+3. In **this** repo's **Settings → Secrets and variables → Actions**, add
+   three repository secrets:
+   - `DATABASE_URL` - the same pooled connection string from step 1 (GitHub
+     Actions can't see your Vercel environment variables, so this needs to
+     be added here too).
+   - `BACKUP_REPO` - `your-github-username/brain-quest-backups` (or
+     whatever you named it).
+   - `BACKUP_REPO_TOKEN` - the token from step 2.
+4. That's it - it runs automatically every day, and you can trigger it
+   manually from this repo's **Actions** tab any time ("Run workflow"). Each
+   run adds a dated folder (`2026-01-15/`, etc.) with one JSON file per
+   table to the backup repo.
+
+Restoring from a backup means reading the JSON back in with a small script
+against `db/schema.sql` on a fresh database - there's no one-command
+restore script yet, since it's never been needed; ask for one if the day
+comes.
+
 ## Rebalancing the game later
 
 Every point value, timer, and default reward lives in one file:

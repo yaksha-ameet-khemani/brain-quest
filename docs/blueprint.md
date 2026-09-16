@@ -380,3 +380,33 @@ mechanics attached to it.
   streak to 0 (no badge) while the weekly streak stayed at 1 - the last
   week actually played is still within the "one skipped week is still
   alive" window, not yet broken. Cleaned up afterward.
+
+**v11 update - automated backups:** per user request, `.github/workflows/
+backup.yml` dumps every table to JSON daily via `scripts/backup.mjs`. The
+one real design decision here: the destination can't be this repo, since
+it's public and a full table dump necessarily contains family PII (names,
+emails, hashed passwords/PINs, kid photos) - so it pushes into a second,
+**separate, private** GitHub repo instead (private repos are free, same as
+everything else in this stack). That repo and the fine-grained PAT to push
+to it are things only the account owner can create (the same reasoning as
+avoiding a Vercel↔GitHub account link earlier in this doc) - not something
+done from inside this session. The workflow is written to no-op safely
+(a skipped run with a warning, not a failure) until `docs/SETUP.md`'s new
+"Automated backups" section's one-time setup is done.
+
+- `scripts/backup.mjs` is a plain script using the same `pg` dependency the
+  app already has - no new dependency - and dumps every table in
+  `db/schema.sql` verbatim (hashes included; the destination repo is
+  private and trusted at the same level as the production database itself,
+  and a backup missing the fields needed to actually restore isn't much of
+  a backup) to one JSON file per table plus a `_manifest.json` with row
+  counts and a timestamp.
+- Verified by actually running it against the real production database
+  (read-only - `SELECT * FROM <table>`, nothing written): row counts came
+  back sane and matching known state (120 questions, 3 parents, 4
+  children, etc.), confirming the query and JSON output work end-to-end,
+  not just that the code compiles.
+- Restore is deliberately not built yet - there's no working restore
+  script, since there's never been a need for one. Noted here rather than
+  silently left out, per the user's own request to flag what's deferred and
+  why.

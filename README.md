@@ -79,6 +79,13 @@ Open http://localhost:3000.
   an admin-only "reset activity" per child for testing, which never touches
   the child's profile/PIN.
 
+**Backups**
+- `.github/workflows/backup.yml` dumps every table to JSON daily, pushed
+  into a second, separate, **private** GitHub repo (never this one, since
+  this repo is public and a dump contains family PII). Needs a one-time
+  setup only the account owner can do - see `docs/SETUP.md`'s "Automated
+  backups" section. Until that's done, the workflow safely no-ops.
+
 ## Project structure
 
 ```
@@ -93,8 +100,9 @@ app/                 Pages (App Router) and API route handlers
 components/          Shared client components
 lib/                 Config, database access, auth, question generation, level progress
 db/                  schema.sql + seed.sql (fresh install) + migrations/ (applied-to-prod history)
+scripts/             backup.mjs - dumps every table to JSON (used by the backup workflow)
 docs/                Setup guide and the versioned blueprint/design doc
-.github/workflows/   Free weekly keep-alive ping for the database's free tier
+.github/workflows/   Free weekly keep-alive ping + daily database backup
 ```
 
 ## Deploying a change

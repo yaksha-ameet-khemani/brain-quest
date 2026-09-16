@@ -1,0 +1,65 @@
+name: Back up the database
+
+# Dumps every table to JSON and pushes it into a SEPARATE, PRIVATE repo - not
+# this one, since this repo is public and a backup necessarily contains
+# family PII (names, emails, hashed passwords/PINs, kid photos). See
+# docs/SETUP.md's "Automated backups" section for the one-time setup this
+# needs (a private repo + a fine-grained PAT), which only the account owner
+# can do - this workflow no-ops safely until that's in place.
+on:
+  schedule:
+    - cron: "15 19 * * *" # daily, 19:15 UTC
+  workflow_dispatch: {} # lets you trigger it manually from the Actions tab
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check backup destination is configured
+        id: check
+        run: |
+          if [ -n "${{ secrets.BACKUP_REPO_TOKEN }}" ] && [ -n "${{ secrets.BACKUP_REPO }}" ] && [ -n "${{ secrets.DATABASE_URL }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Backup destination isn't configured yet (BACKUP_REPO / BACKUP_REPO_TOKEN / DATABASE_URL secrets) - see docs/SETUP.md. Skipping this run."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.configured == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.configured == 'true'
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        if: steps.check.outputs.configured == 'true'
+        run: npm ci
+
+      - name: Dump every table to JSON
+        if: steps.check.outputs.configured == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: node scripts/backup.mjs
+
+      - name: Check out the private backup repo
+        if: steps.check.outputs.configured == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.BACKUP_REPO }}
+          token: ${{ secrets.BACKUP_REPO_TOKEN }}
+          path: backup-repo
+
+      - name: Commit and push today's dump
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          DATE=$(date -u +%F)
+          mkdir -p "backup-repo/$DATE"
+          cp backup-output/*.json "backup-repo/$DATE/"
+          cd backup-repo
+          git config user.name "brain-quest-backup"
+          git config user.email "actions@users.noreply.github.com"
+          git add "$DATE"
+          git commit -m "Backup $DATE" || { echo "Nothing changed - skipping commit"; exit 0; }
+          git push
