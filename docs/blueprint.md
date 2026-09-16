@@ -410,3 +410,66 @@ done from inside this session. The workflow is written to no-op safely
   script, since there's never been a need for one. Noted here rather than
   silently left out, per the user's own request to flag what's deferred and
   why.
+
+**v12 update - Level 3:** per user request, a real third level now exists -
+not a bonus/stretch mode like the v7 mechanic, but a full permanent level a
+parent can assign, with its own 60-question curated bank (20 logic/riddle/
+spatial each) and its own math template set. `lib/config.ts`'s
+`Level`/`MAX_LEVEL`/`nextLevel()` were deliberately written back in v7 to
+generalize to exactly this without further logic changes - this update is
+the proof: `MAX_LEVEL` moved from 2 to 3, and every level-progression,
+bonus-round, and daily-cap code path picked it up with zero changes beyond
+the constant itself.
+
+- `db/migrations/007_level_three.sql` widens the `level` check constraint
+  on `children`, `questions`, and `rounds` from `(1, 2)` to `(1, 2, 3)`.
+  `db/migrations/008_level3_question_bank.sql` adds the 60 questions;
+  both are also folded into `db/schema.sql`/`db/seed.sql` for fresh
+  installs.
+- New `lib/config.ts` values: `LEVELS[3]` (label, a 100s per-question timer
+  - a little more than level 2's 90s, since the content is harder to read
+  through, not just harder to compute), `POINTS_PER_CORRECT[3]` (14) and
+  `PERFECT_ROUND_BONUS[3]` (12), continuing the same "close across levels"
+  progression as 1 and 2. Also added `ALL_LEVELS`/`isValidLevel()` and used
+  them to replace the hardcoded `level !== 1 && level !== 2` checks
+  scattered across the profile and question-bank API routes - the kind of
+  repeated literal that's exactly how a level 3 rollout goes wrong by half
+  (some endpoint quietly still rejecting it) if each call site is
+  hand-edited instead of centralized.
+- `lib/mathQuestions.ts` gained 8 new level-3 templates (exponents, square
+  roots, two-sided linear equations, percentage discounts, circle
+  circumference, averages, GCF, and dice probability) - deliberately
+  harder concepts than level 2's percentages/ratios/simple algebra, not
+  just bigger numbers on the same concepts.
+- The 60 curated questions were authored by hand, then checked
+  programmatically against the entire existing 120-question bank for two
+  things: exact question-text duplicates, and - the more interesting catch
+  - the *same well-known riddle reworded differently* (5 of the first-draft
+  riddles turned out to be near-verbatim restatements of riddles already in
+  the bank, e.g. "what can fill a room but takes up no space" vs the
+  existing "what can fill an entire room but takes up no physical space" -
+  both classic riddles independently landing on the same famous answer).
+  All 5 were swapped for genuinely different riddles before anything was
+  written to the database.
+- Correctness of the 8 new math templates was verified separately and far
+  more rigorously than eyeballing: a throwaway script generated 2,000
+  level-3 math questions and re-derived the expected answer for each one
+  independently (parsing the question text back out and recomputing),
+  catching zero errors - but this process is what caught and fixed a real
+  bug first: the dice-probability template's distractor options could
+  collide with the correct answer's exact string value for a sum of 7,
+  producing a duplicate option. Fixed by replacing the ad hoc distractor
+  logic with a small lookup table of the 4 distinct possible reduced
+  fractions (sums 4-10 only ever produce 3, 4, 5, or 6 ways out of 36),
+  which makes a collision structurally impossible rather than just unlikely.
+- Verified end-to-end against the real database: a throwaway Level 3 child
+  played a full round pulling real bank content, confirmed
+  `timeLimitSeconds: 100` and the new point values (14 base, 1.5x streak
+  multiplier at 3+, +12 perfect-round bonus - a perfect round paid exactly
+  113 points as hand-calculated) and confirmed no bonus-round UI appears
+  (correct - level 3 is `MAX_LEVEL`, nothing above it). Separately, a
+  throwaway Level 2 child with 3 backdated perfect rounds today correctly
+  saw a bonus **Level 3** round offered on their dashboard and was able to
+  start it and receive real level-3 content - confirming the v7 bonus
+  mechanic generalized to the new top level exactly as designed, with no
+  code changes of its own.

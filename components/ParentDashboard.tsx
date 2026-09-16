@@ -6,6 +6,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Avatar from "@/components/Avatar";
 import { fileToResizedDataUrl, ImageTooLargeError } from "@/lib/imageResize";
 import { useAutoRefresh } from "@/components/AutoRefresh";
+import type { Level } from "@/lib/config";
 
 interface CategoryStat {
   category: string;
@@ -13,7 +14,7 @@ interface CategoryStat {
   total: number;
 }
 interface ChildOverview {
-  child: { id: string; name: string; avatar: string; photoDataUrl: string | null; level: 1 | 2 };
+  child: { id: string; name: string; avatar: string; photoDataUrl: string | null; level: Level };
   parentEmail: string | null;
   balance: number;
   roundsPlayed: number;
@@ -39,7 +40,7 @@ interface ActivitySummary {
   name: string;
   avatar: string;
   photoDataUrl: string | null;
-  level: 1 | 2;
+  level: Level;
   lastLogin: string | null;
   totalAttempted: number;
   correct: number;
@@ -417,6 +418,7 @@ export default function ParentDashboard({
             >
               <option value="1">Level 1 (younger)</option>
               <option value="2">Level 2 (older)</option>
+              <option value="3">Level 3 (most advanced)</option>
             </select>
           </div>
           <div className="flex items-center gap-3">

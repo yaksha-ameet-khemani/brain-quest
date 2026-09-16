@@ -173,6 +173,10 @@ function buildOptionsDecimal(correct: number, distractors: number[]) {
   return { options: options.map((o) => `$${(Number(o) / 100).toFixed(2)}`), correctIndex };
 }
 
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b);
+}
+
 // ---- Level 2 (older kid: percentages, ratios, simple algebra, geometry) ----
 
 const level2Templates: Template[] = [
@@ -295,8 +299,133 @@ const level2Templates: Template[] = [
   },
 ];
 
+// ---- Level 3 (most advanced: exponents, equations with x on both sides, circles, probability) ----
+
+const level3Templates: Template[] = [
+  () => {
+    const base = randInt(2, 5);
+    const exp = randInt(2, 4);
+    const correct = base ** exp;
+    const { options, correctIndex } = buildOptions(correct, [correct + base, base * exp, correct - exp]);
+    return {
+      category: "math",
+      questionText: `What is ${base}^${exp} (${base} to the power of ${exp})?`,
+      options,
+      correctIndex,
+      explanation: `${base}^${exp} means multiplying ${base} by itself ${exp} times, which equals ${correct}.`,
+    };
+  },
+  () => {
+    const n = randInt(4, 15);
+    const square = n * n;
+    const { options, correctIndex } = buildOptions(n, [n + 1, n - 1, n + 2]);
+    return {
+      category: "math",
+      questionText: `What is the square root of ${square}?`,
+      options,
+      correctIndex,
+      explanation: `${n} x ${n} = ${square}, so the square root of ${square} is ${n}.`,
+    };
+  },
+  () => {
+    const x0 = randInt(2, 15);
+    const a = randInt(4, 9);
+    const c = randInt(1, a - 1);
+    const b = randInt(1, 20);
+    const d = b + (a - c) * x0;
+    const { options, correctIndex } = buildOptions(x0, [x0 + 1, x0 - 1, Math.round((b + d) / (a + c))]);
+    return {
+      category: "math",
+      questionText: `Solve for x: ${a}x + ${b} = ${c}x + ${d}`,
+      options,
+      correctIndex,
+      explanation: `Subtract ${c}x from both sides: ${a - c}x + ${b} = ${d}. Then ${a - c}x = ${d - b}, so x = ${d - b} / ${a - c} = ${x0}.`,
+    };
+  },
+  () => {
+    const base = randInt(20, 200);
+    const pct = [10, 20, 25, 50][randInt(0, 3)]!;
+    const discount = (base * pct) / 100;
+    const correct = base - discount;
+    const { options, correctIndex } = buildOptions(correct, [discount, base + discount, correct + 5]);
+    return {
+      category: "math",
+      questionText: `A $${base} jacket is discounted by ${pct}%. What is the sale price?`,
+      options,
+      correctIndex,
+      explanation: `${pct}% of $${base} is $${discount}. Sale price = $${base} - $${discount} = $${correct}.`,
+    };
+  },
+  () => {
+    const k = randInt(1, 4);
+    const r = 7 * k;
+    const correct = 44 * k;
+    const { options, correctIndex } = buildOptions(correct, [22 * k, 88 * k, correct + 7]);
+    return {
+      category: "math",
+      questionText: `A circle has a radius of ${r} cm. Using pi = 22/7, what is its circumference (2 x pi x r)?`,
+      options,
+      correctIndex,
+      explanation: `Circumference = 2 x (22/7) x ${r} = ${correct} cm.`,
+    };
+  },
+  () => {
+    const avg = randInt(16, 40); // floor of 16 guarantees the 4th number below always comes out positive
+    const a = avg + randInt(-5, 5);
+    const b = avg + randInt(-5, 5);
+    const c = avg + randInt(-5, 5);
+    const correct = 4 * avg - a - b - c;
+    const { options, correctIndex } = buildOptions(correct, [avg, correct + 4, correct - 4]);
+    return {
+      category: "math",
+      questionText: `The average of 4 numbers is ${avg}. Three of the numbers are ${a}, ${b}, and ${c}. What is the fourth number?`,
+      options,
+      correctIndex,
+      explanation: `4 numbers averaging ${avg} add up to ${4 * avg}. ${4 * avg} - ${a} - ${b} - ${c} = ${correct}.`,
+    };
+  },
+  () => {
+    const g = randInt(2, 9);
+    const m1 = randInt(2, 6);
+    const m2 = randInt(2, 6);
+    const a = g * m1;
+    const b = g * m2;
+    const correct = gcd(a, b);
+    const { options, correctIndex } = buildOptions(correct, [g, correct + 1, Math.max(1, correct - 1)]);
+    return {
+      category: "math",
+      questionText: `What is the Greatest Common Factor (GCF) of ${a} and ${b}?`,
+      options,
+      correctIndex,
+      explanation: `The largest number that divides evenly into both ${a} and ${b} is ${correct}.`,
+    };
+  },
+  () => {
+    // Sums 4-10 with two six-sided dice have ways-to-make-it of 3, 4, 5, or
+    // 6 - each reduces to a distinct fraction, so those 4 fractions always
+    // make a clean, unambiguous option set with no duplicate-value risk.
+    const FRACTION_BY_WAYS: Record<number, string> = { 3: "1/12", 4: "1/9", 5: "5/36", 6: "1/6" };
+    const target = randInt(4, 10);
+    let ways = 0;
+    for (let i = 1; i <= 6; i++) {
+      for (let j = 1; j <= 6; j++) {
+        if (i + j === target) ways++;
+      }
+    }
+    const correctFraction = FRACTION_BY_WAYS[ways]!;
+    const shuffled = shuffle(Object.values(FRACTION_BY_WAYS));
+    return {
+      category: "math",
+      questionText: `Two six-sided dice are rolled together. What is the probability that the sum of the two dice is ${target}?`,
+      options: shuffled,
+      correctIndex: shuffled.indexOf(correctFraction),
+      explanation: `Out of the 36 equally likely dice combinations, ${ways} add up to ${target}, giving a probability of ${ways}/36 = ${correctFraction}.`,
+    };
+  },
+];
+
 export function generateMathQuestion(level: Level): GeneratedQuestion {
-  const templates = level === 1 ? level1Templates : level2Templates;
+  const templates = level === 1 ? level1Templates : level === 2 ? level2Templates : level3Templates;
   const pick = templates[randInt(0, templates.length - 1)]!;
   return pick();
 }

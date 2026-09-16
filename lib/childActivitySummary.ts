@@ -1,13 +1,14 @@
 import "server-only";
 import { query } from "@/lib/db";
 import { getStreaks } from "@/lib/streak";
+import type { Level } from "@/lib/config";
 
 export interface ChildActivitySummary {
   id: string;
   name: string;
   avatar: string;
   photoDataUrl: string | null;
-  level: 1 | 2;
+  level: Level;
   lastLogin: string | null;
   totalAttempted: number;
   correct: number;
@@ -22,7 +23,7 @@ interface Row {
   name: string;
   avatar: string;
   photo_data_url: string | null;
-  level: 1 | 2;
+  level: Level;
   last_login: string | null;
   total_attempted: string;
   correct: string;

@@ -51,7 +51,7 @@ create table children (
   name text not null,
   avatar text not null default '🙂', -- emoji fallback, shown when photo_data_url is null
   photo_data_url text, -- optional photo, already resized/compressed client-side (see lib/imageResize.ts)
-  level smallint not null check (level in (1, 2)), -- 1 = younger / 2 = older group, not tied to a school grade number
+  level smallint not null check (level in (1, 2, 3)), -- 1 = younger, 2 = older, 3 = most advanced - not tied to a school grade number
   pin_hash text not null,
   created_at timestamptz not null default now()
 );
@@ -91,7 +91,7 @@ create table child_category_weights (
 -- ---------------------------------------------------------------------------
 create table questions (
   id uuid primary key default gen_random_uuid(),
-  level smallint not null check (level in (1, 2)),
+  level smallint not null check (level in (1, 2, 3)),
   category text not null check (category in ('logic', 'riddle', 'spatial')),
   question_text text not null,
   options jsonb not null, -- array of 4 strings, canonical storage order
@@ -107,7 +107,7 @@ create table questions (
 create table rounds (
   id uuid primary key default gen_random_uuid(),
   child_id uuid not null references children (id) on delete cascade,
-  level smallint not null check (level in (1, 2)),
+  level smallint not null check (level in (1, 2, 3)),
   kind text not null default 'standard' check (kind in ('standard', 'review')), -- 'review' = replaying past wrong answers for practice, never for points
   status text not null default 'in_progress' check (status in ('in_progress', 'completed', 'abandoned')),
   correct_count smallint not null default 0,

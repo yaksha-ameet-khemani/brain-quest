@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { requireParent } from "@/lib/requireParent";
 import { hashPin } from "@/lib/pin";
-import { MAX_PHOTO_DATA_URL_LENGTH } from "@/lib/config";
+import { isValidLevel, MAX_PHOTO_DATA_URL_LENGTH } from "@/lib/config";
 import type { ChildRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +42,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ childI
     sets.push(`avatar = $${i++}`);
     values.push(body.avatar.trim());
   }
-  if (body?.level === 1 || body?.level === 2) {
+  if (isValidLevel(body?.level)) {
     sets.push(`level = $${i++}`);
     values.push(body.level);
   }

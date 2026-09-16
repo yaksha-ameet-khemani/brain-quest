@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { requireAdmin } from "@/lib/requireParent";
-import { BANK_CATEGORIES, type BankCategory, type Level } from "@/lib/config";
+import { BANK_CATEGORIES, isValidLevel, type BankCategory, type Level } from "@/lib/config";
 import type { QuestionRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   const explanation: string | undefined = body?.explanation?.trim();
 
   if (
-    (level !== 1 && level !== 2) ||
+    !isValidLevel(level) ||
     !category ||
     !BANK_CATEGORIES.includes(category) ||
     !questionText ||

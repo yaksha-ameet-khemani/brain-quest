@@ -1,7 +1,12 @@
 // Central place for every tunable number in the game. Changing the economy
 // means changing numbers here, not hunting through route handlers.
 
-export type Level = 1 | 2;
+export type Level = 1 | 2 | 3;
+export const ALL_LEVELS: readonly Level[] = [1, 2, 3];
+
+export function isValidLevel(value: unknown): value is Level {
+  return typeof value === "number" && (ALL_LEVELS as readonly number[]).includes(value);
+}
 
 export const CATEGORIES = ["math", "logic", "riddle", "spatial"] as const;
 export type Category = (typeof CATEGORIES)[number];
@@ -15,8 +20,9 @@ export const DEFAULT_CATEGORY_WEIGHT = 1;
 export const LEVELS: Record<Level, { label: string; perQuestionSeconds: number }> = {
   1: { label: "Level 1", perQuestionSeconds: 45 },
   2: { label: "Level 2", perQuestionSeconds: 90 },
+  3: { label: "Level 3", perQuestionSeconds: 100 },
 };
-export const MAX_LEVEL: Level = 2;
+export const MAX_LEVEL: Level = 3;
 
 /** The level directly above `level`, or null if it's already the top
  * (currently always the case for level 2 - there's no level 3 content yet).
@@ -51,11 +57,13 @@ export const MAX_REVIEW_QUESTIONS = 5;
 export const POINTS_PER_CORRECT: Record<Level, number> = {
   1: 10,
   2: 12,
+  3: 14,
 };
 
 export const PERFECT_ROUND_BONUS: Record<Level, number> = {
   1: 8,
   2: 10,
+  3: 12,
 };
 
 // 3 correct answers in a row (within a round) multiplies points on the

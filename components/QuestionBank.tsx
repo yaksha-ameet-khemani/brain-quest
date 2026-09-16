@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { ALL_LEVELS, type Level } from "@/lib/config";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useAutoRefresh } from "@/components/AutoRefresh";
 
 interface BankQuestion {
   id: string;
-  level: 1 | 2;
+  level: Level;
   category: "logic" | "riddle" | "spatial";
   questionText: string;
   options: string[];
@@ -31,7 +32,7 @@ export default function QuestionBank() {
   useAutoRefresh();
   const [questions, setQuestions] = useState<BankQuestion[]>([]);
   const [loading, setLoading] = useState(true);
-  const [levelFilter, setLevelFilter] = useState<"all" | "1" | "2">("all");
+  const [levelFilter, setLevelFilter] = useState<"all" | "1" | "2" | "3">("all");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "logic" | "riddle" | "spatial">("all");
   const [showInactive, setShowInactive] = useState(false);
 
@@ -139,8 +140,11 @@ export default function QuestionBank() {
               onChange={(e) => setForm((s) => ({ ...s, level: e.target.value }))}
               className="rounded-xl border border-slate-200 p-3"
             >
-              <option value="1">Level 1</option>
-              <option value="2">Level 2</option>
+              {ALL_LEVELS.map((l) => (
+                <option key={l} value={l}>
+                  Level {l}
+                </option>
+              ))}
             </select>
             <select
               value={form.category}
@@ -212,7 +216,7 @@ export default function QuestionBank() {
       </section>
 
       <div className="flex flex-wrap gap-2">
-        {(["all", "1", "2"] as const).map((l) => (
+        {(["all", "1", "2", "3"] as const).map((l) => (
           <button
             key={l}
             onClick={() => setLevelFilter(l)}

@@ -50,17 +50,21 @@ Open http://localhost:3000.
   always the sum of that child's transactions.
 
 **Content**
+- Three levels: 1 (younger), 2 (older), 3 (most advanced) - a parent assigns
+  a child's level, and admin can change it any time.
 - Math questions are generated from templates (`lib/mathQuestions.ts`) so
   they never run out; logic/riddle/spatial questions come from a curated,
-  hand-verified bank (120 questions - 20 per level per category) that admin
-  manages from an in-app **Question Bank** page, including each question's
-  live "proficiency" (attempts/correct/success rate).
+  hand-verified bank (180 questions - 20 per level per category, across all
+  3 levels) that admin manages from an in-app **Question Bank** page,
+  including each question's live "proficiency" (attempts/correct/success
+  rate).
 - Admin can set a per-child, per-category priority weight (e.g. give a kid
   more logic practice if that's their weak spot), which steers what shows
   up in that child's rounds.
 - A child who finishes all of a day's rounds with better than 75% accuracy
   unlocks 3 bonus rounds at the next level up, for that day - a repeatable
-  daily stretch-goal, not a permanent level change.
+  daily stretch-goal, not a permanent level change. (A Level 3 child is
+  already at the top, so this doesn't apply to them.)
 - A child can replay questions they most recently got wrong in a one-a-day
   "review round" - pure practice, never scored and never counted against
   the daily round limit. Getting one right on review retires it; getting it

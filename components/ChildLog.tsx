@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { Level } from "@/lib/config";
 import { useEffect, useState } from "react";
 import { formatDuration } from "@/lib/format";
 import Avatar from "@/components/Avatar";
@@ -27,7 +28,7 @@ interface ChildInfo {
   name: string;
   avatar: string;
   photoDataUrl: string | null;
-  level: 1 | 2;
+  level: Level;
 }
 
 function ChildPhotoEditor({ child, onChanged }: { child: ChildInfo; onChanged: () => void }) {

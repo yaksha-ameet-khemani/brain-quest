@@ -2,6 +2,8 @@
 // Supabase-style generated Database type) since we talk to Postgres directly
 // now - update these alongside schema.sql if a column changes.
 
+import type { Level } from "@/lib/config";
+
 export type ParentRole = "admin" | "parent";
 
 export interface ParentRow {
@@ -18,7 +20,7 @@ export interface ChildRow {
   name: string;
   avatar: string;
   photo_data_url: string | null;
-  level: 1 | 2;
+  level: Level;
   pin_hash: string;
   created_at: string;
 }
@@ -37,7 +39,7 @@ export interface ChildCategoryWeightRow {
 
 export interface QuestionRow {
   id: string;
-  level: 1 | 2;
+  level: Level;
   category: "logic" | "riddle" | "spatial";
   question_text: string;
   options: string[];
@@ -50,7 +52,7 @@ export interface QuestionRow {
 export interface RoundRow {
   id: string;
   child_id: string;
-  level: 1 | 2;
+  level: Level;
   kind: "standard" | "review";
   status: "in_progress" | "completed" | "abandoned";
   correct_count: number;

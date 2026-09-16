@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { requireAdmin } from "@/lib/requireParent";
-import { BANK_CATEGORIES, type BankCategory, type Level } from "@/lib/config";
+import { BANK_CATEGORIES, isValidLevel, type BankCategory, type Level } from "@/lib/config";
 import type { QuestionRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const values: unknown[] = [];
   let i = 1;
 
-  if (body?.level === 1 || body?.level === 2) {
+  if (isValidLevel(body?.level)) {
     sets.push(`level = $${i++}`);
     values.push(body.level as Level);
   }

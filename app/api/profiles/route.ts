@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { requireParent } from "@/lib/requireParent";
 import { hashPin } from "@/lib/pin";
-import { MAX_PHOTO_DATA_URL_LENGTH } from "@/lib/config";
+import { isValidLevel, MAX_PHOTO_DATA_URL_LENGTH } from "@/lib/config";
 import type { ChildRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -49,9 +49,9 @@ export async function POST(req: Request) {
       ? body.photoDataUrl
       : null;
 
-  if (!name || (level !== 1 && level !== 2) || !pin || !/^\d{4,6}$/.test(pin)) {
+  if (!name || !isValidLevel(level) || !pin || !/^\d{4,6}$/.test(pin)) {
     return NextResponse.json(
-      { error: "name, level (1 or 2), and a 4-6 digit pin are required." },
+      { error: "name, a valid level, and a 4-6 digit pin are required." },
       { status: 400 }
     );
   }

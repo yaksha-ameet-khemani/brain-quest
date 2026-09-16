@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAutoRefresh } from "@/components/AutoRefresh";
+import type { Level } from "@/lib/config";
 
 interface Question {
   position: number;
@@ -15,7 +16,7 @@ interface Question {
 
 interface RoundStart {
   roundId: string;
-  level: 1 | 2;
+  level: Level;
   kind: "standard" | "review";
   totalQuestions: number;
   timeLimitSeconds: number;
