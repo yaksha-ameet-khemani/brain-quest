@@ -5,6 +5,9 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAutoRefresh } from "@/components/AutoRefresh";
 import type { Level } from "@/lib/config";
+import { fireSmallConfetti, fireRoundConfetti, firePerfectConfetti } from "@/lib/confetti";
+import { playCorrectSound, playWrongSound, playPerfectSound, playRoundDoneSound } from "@/lib/sound";
+import SoundToggle from "@/components/SoundToggle";
 
 interface Question {
   position: number;
@@ -130,6 +133,20 @@ function QuizPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsLeft, phase]);
 
+  // Bigger celebration once, right when the "done" screen first appears -
+  // not on every re-render while it's showing.
+  useEffect(() => {
+    if (phase !== "done" || !result || !round) return;
+    if (result.correctCount === round.totalQuestions) {
+      firePerfectConfetti();
+      playPerfectSound();
+    } else {
+      fireRoundConfetti();
+      playRoundDoneSound();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   async function submitAnswer(selectedIndex: number) {
     if (!round || !question || submittedRef.current) return;
     submittedRef.current = true;
@@ -151,6 +168,12 @@ function QuizPageInner() {
       }
       setResult(data);
       setPhase("feedback");
+      if (data.isCorrect) {
+        fireSmallConfetti();
+        playCorrectSound();
+      } else {
+        playWrongSound();
+      }
     } catch {
       setError("Network error submitting your answer.");
       setPhase("error");
@@ -273,17 +296,20 @@ function QuizPageInner() {
         </p>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <span className="rounded-full bg-white px-3 py-1 text-sm font-medium text-slate-500 ring-1 ring-slate-100">
           {CATEGORY_LABEL[question.category] ?? question.category}
         </span>
-        <span
-          className={`rounded-full px-3 py-1 text-sm font-bold ${
-            secondsLeft <= 10 ? "bg-rose-100 text-rose-600" : "bg-brand-100 text-brand-700"
-          }`}
-        >
-          ⏱ {secondsLeft}s
-        </span>
+        <div className="flex items-center gap-2">
+          <SoundToggle />
+          <span
+            className={`rounded-full px-3 py-1 text-sm font-bold ${
+              secondsLeft <= 10 ? "bg-rose-100 text-rose-600" : "bg-brand-100 text-brand-700"
+            }`}
+          >
+            ⏱ {secondsLeft}s
+          </span>
+        </div>
       </div>
 
       <h2 className="text-xl font-semibold leading-snug">{question.questionText}</h2>

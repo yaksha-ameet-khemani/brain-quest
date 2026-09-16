@@ -473,3 +473,32 @@ the constant itself.
   start it and receive real level-3 content - confirming the v7 bonus
   mechanic generalized to the new top level exactly as designed, with no
   code changes of its own.
+
+**v13 update - delight polish (confetti + sound):** per user request, the
+quiz now celebrates: a small confetti burst + chime on every correct
+answer, a bigger two-sided burst + a short fanfare on finishing a round,
+and a rising multi-note fanfare specifically for a perfect round. A short
+downward tone plays on a wrong answer too - not harsh, just enough
+feedback to register "not quite" without being unpleasant for a kids' app.
+
+- `canvas-confetti` is the one new runtime dependency added this whole
+  project - a ~3kb, dependency-free, extremely widely used library. Worth
+  a dependency here rather than hand-rolling canvas particle physics for a
+  pure visual-polish feature; it has no server component and no cost.
+- Sound is NOT an audio file - `lib/sound.ts` synthesizes short tones
+  directly via the Web Audio API (a few sine-wave oscillators), so there's
+  nothing to host and nothing that costs anything, consistent with every
+  other $0-cost decision in this project.
+- A mute toggle (`components/SoundToggle.tsx`) remembers its state in
+  `localStorage` - a per-device preference, not something that needs to
+  sync anywhere, so `localStorage` is the right tool rather than a new
+  column on `children`.
+- Verified in a real headless browser (not just "the build passed"): logged
+  in as a throwaway kid, answered a real quiz question correctly, and
+  captured a screenshot showing the confetti canvas actually rendering
+  over the "Correct! +12 points" feedback card. Iterating on this test hit
+  real flakiness from Neon's connection handling under the heavy load of a
+  full day's testing (multi-second query times, occasional dropped
+  connections) - a testing-environment artifact from this session's own
+  volume of throwaway DB activity, not a defect in the app; noted here for
+  the record rather than silently glossed over.

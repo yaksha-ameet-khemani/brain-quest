@@ -72,6 +72,10 @@ Open http://localhost:3000.
 - A dashboard badge recognizes daily/weekly play streaks ("🔥 4 day streak
   · 🗓️ 1 week streak") - no extra mechanic, just showing up consistently
   gets noticed.
+- Confetti and short synthesized sound effects (no audio files - generated
+  in-browser via the Web Audio API) celebrate correct answers and finished
+  rounds, with a bigger celebration for a perfect round. A 🔊/🔇 toggle on
+  the quiz screen remembers its state per-device.
 
 **Visibility**
 - The homepage is just the child picker and a Parent Mode link - no activity
