@@ -34,6 +34,18 @@ interface ParentAccount {
   role: "admin" | "parent";
   created_at: string;
 }
+interface ActivitySummary {
+  id: string;
+  name: string;
+  avatar: string;
+  photoDataUrl: string | null;
+  level: 1 | 2;
+  lastLogin: string | null;
+  totalAttempted: number;
+  correct: number;
+  wrong: number;
+  totalTimeSeconds: number;
+}
 
 export default function ParentDashboard({
   parentEmail,
@@ -47,6 +59,7 @@ export default function ParentDashboard({
   const [overview, setOverview] = useState<ChildOverview[]>([]);
   const [redemptions, setRedemptions] = useState<Redemption[]>([]);
   const [parents, setParents] = useState<ParentAccount[]>([]);
+  const [activity, setActivity] = useState<ActivitySummary[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -81,14 +94,16 @@ export default function ParentDashboard({
   const [parentMessage, setParentMessage] = useState<string | null>(null);
 
   async function refresh() {
-    const [ov, rd, pa] = await Promise.all([
+    const [ov, rd, pa, ac] = await Promise.all([
       fetch("/api/parent/overview"),
       fetch("/api/parent/redemptions"),
       role === "admin" ? fetch("/api/admin/parents") : Promise.resolve(null),
+      role === "admin" ? fetch("/api/admin/activity") : Promise.resolve(null),
     ]);
     if (ov.ok) setOverview((await ov.json()).overview);
     if (rd.ok) setRedemptions((await rd.json()).redemptions);
     if (pa?.ok) setParents((await pa.json()).parents);
+    if (ac?.ok) setActivity((await ac.json()).activity);
   }
 
   useEffect(() => {
@@ -325,6 +340,38 @@ export default function ParentDashboard({
           {overview.length === 0 && <p className="text-sm text-slate-500">No kid profiles yet - add one below.</p>}
         </div>
       </section>
+
+      {role === "admin" && (
+        <section>
+          <h2 className="mb-3 text-lg font-bold">🛡️ Family activity (admin only)</h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Last login and lifetime question stats per child. Visible only here, not on the homepage.
+          </p>
+          <div className="grid gap-2">
+            {activity.map((a) => (
+              <div
+                key={a.id}
+                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-white p-3 text-sm shadow-sm ring-1 ring-slate-100"
+              >
+                <span className="flex min-w-0 items-center gap-1.5 font-semibold">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center text-base">
+                    <Avatar photoDataUrl={a.photoDataUrl} avatar={a.avatar} name={a.name} />
+                  </span>
+                  <span className="truncate">{a.name}</span>
+                </span>
+                <span className="shrink-0 text-xs text-slate-500">
+                  {a.lastLogin ? `Last played ${new Date(a.lastLogin).toLocaleString()}` : "Never logged in"}
+                  {" · "}
+                  {a.correct}/{a.totalAttempted} correct
+                  {" · "}
+                  {Math.round(a.totalTimeSeconds / 60)} min played
+                </span>
+              </div>
+            ))}
+            {activity.length === 0 && <p className="text-sm text-slate-500">No activity yet.</p>}
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-lg font-bold">Add a child profile</h2>

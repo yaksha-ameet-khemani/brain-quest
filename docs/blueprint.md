@@ -260,3 +260,36 @@ content exists.
   showing accurate progress numbers and a direct bonus-round request
   correctly refused. A Level 2 base child (already at `MAX_LEVEL`) correctly
   shows no bonus UI at all.
+
+**v8 update - the homepage activity summary is now admin-only:** v6 added a
+public, no-login "Family Activity" summary (last login, questions
+attempted/correct/wrong, time spent) to the homepage at the family's own
+request. Once real data was in it, the same user asked to hide it - with
+several kids' numbers sitting side by side under each other's names on the
+first screen anyone sees, it read as a sibling leaderboard rather than a
+private parent-facing stat. Reversing an earlier explicit decision like this
+isn't a bug fix, it's the user changing their mind once they saw the real
+thing in practice - noted here for the record, not relitigated.
+
+- `app/api/public/activity` (no-auth) is deleted outright; there is no
+  unauthenticated way to reach this data anymore.
+- `lib/publicActivity.ts` renamed to `lib/childActivitySummary.ts`
+  (`getPublicActivity()` → `getChildActivitySummary()`) to stop the name
+  itself implying "safe to expose without auth."
+- The same aggregate data now lives behind a new `GET /api/admin/activity`,
+  gated by `requireAdmin()` - the same guard already used for
+  `/api/admin/parents` - and rendered in a new "🛡️ Family activity (admin
+  only)" section on `ParentDashboard.tsx`, visible only when `role ===
+  "admin"`. A non-admin parent still gets their own per-child detail via the
+  existing `/api/parent/overview` and `/parent/children/[childId]` (that was
+  never part of what got hidden - only the *cross-child, all-kids-at-once*
+  view moved behind admin).
+- `app/page.tsx` (the homepage) no longer queries or renders any activity
+  data at all - it's back to just the child picker + Parent Mode link.
+- Verified against the real database: a throwaway non-admin parent account
+  gets 401 from `/api/admin/activity` (confirmed live, via a real login and
+  session cookie) while still getting 200 from `/api/parent/overview`; the
+  homepage HTML contains no activity/stat text; the old public route 404s;
+  and the underlying aggregate query itself was independently re-run
+  against production and confirmed to return the correct, current numbers
+  for all four real child profiles.

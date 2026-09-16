@@ -63,14 +63,14 @@ Open http://localhost:3000.
   daily stretch-goal, not a permanent level change.
 
 **Visibility**
-- The homepage shows a public, no-login activity summary per child (last
-  login, questions attempted/correct/wrong, time spent) - a deliberate
-  exception to the "nothing without a session" rule, made at the family's
-  own request.
-- Signed-in parents/admin get the full detail behind those numbers: every
-  question ever asked, what was picked, right or wrong, and how long it
-  took - plus an admin-only "reset activity" per child for testing, which
-  never touches the child's profile/PIN.
+- The homepage is just the child picker and a Parent Mode link - no activity
+  data is shown there or anywhere without signing in.
+- A signed-in parent sees their own children's full detail: every question
+  ever asked, what was picked, right or wrong, and how long it took.
+- Admin additionally sees a cross-child "Family activity" summary (last
+  login, attempted/correct/wrong, time played) for every kid at once, plus
+  an admin-only "reset activity" per child for testing, which never touches
+  the child's profile/PIN.
 
 ## Project structure
 

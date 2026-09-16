@@ -1,7 +1,7 @@
 import "server-only";
 import { query } from "@/lib/db";
 
-export interface PublicActivity {
+export interface ChildActivitySummary {
   id: string;
   name: string;
   avatar: string;
@@ -27,11 +27,13 @@ interface Row {
   total_time_seconds: string;
 }
 
-/** Aggregate-only activity summary per child - last login, attempted/
- * correct/wrong counts, total time spent answering questions. Deliberately
- * safe to expose without auth (see app/api/public/activity and
- * docs/blueprint.md) - no question content or answers, just counts. */
-export async function getPublicActivity(): Promise<PublicActivity[]> {
+/** Aggregate activity summary per child - last login, attempted/correct/
+ * wrong counts, total time spent answering questions. This used to be
+ * public (no login) at the user's request, then reversed at the user's own
+ * request once real family data was in it - seeing every kid's stats
+ * side-by-side read too much like a sibling leaderboard. Now admin-only;
+ * see app/api/admin/activity and docs/blueprint.md. */
+export async function getChildActivitySummary(): Promise<ChildActivitySummary[]> {
   const rows = await query<Row>(`
     SELECT
       c.id, c.name, c.avatar, c.photo_data_url, c.level,
