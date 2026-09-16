@@ -1,4 +1,4 @@
-# Brain Quest - Blueprint (v6)
+# Brain Quest - Blueprint (v7)
 
 This revises `Kids Logic & Reward Quiz Web Application Blueprint.docx` (the
 original spec) based on a security/gameplay review. The changes are called
@@ -226,3 +226,37 @@ provider either.
 - Spaced-repetition review of missed questions (flagged as a good addition
   later - the biggest single learning lever, deliberately deferred to keep
   v1 shippable).
+
+**v7 update - daily bonus-level unlock:** per user request, a child isn't
+capped at their assigned level forever. `children.level` still means their
+base level (unchanged), but each day, finishing all of that day's
+`MAX_ROUNDS_PER_DAY` rounds with better than `LEVEL_UNLOCK_ACCURACY_THRESHOLD`
+(75%) unlocks `BONUS_ROUNDS_PER_DAY` (3) extra rounds at the next level up,
+for that day only - it resets with the daily round count, the same way the
+base rounds do. Deliberately not a permanent promotion: a strong day earns a
+stretch challenge, it doesn't silently change what a parent set as the
+child's level. Reuses the existing Level 2 content as-is (no new question
+bank needed) - `lib/config.ts`'s `nextLevel()` and `MAX_LEVEL` are what make
+this generalize to a Level 3+ later without changing this logic, once that
+content exists.
+
+- `lib/levelProgress.ts` computes this from data that already exists -
+  `rounds.level` distinguishes a base-level round from a bonus-level one
+  without any new column, so "how many bonus rounds used today" is just
+  "how many rounds at level = next(baseLevel) started today," same query
+  shape as the base daily-limit check.
+- `POST /api/round/start` accepts an optional `{ level }` - defaults to the
+  child's base level; requesting the bonus level is validated server-side
+  against today's unlock state and remaining bonus-round quota regardless of
+  what the client shows, the same defense-in-depth as everywhere else a kid-
+  facing choice gets re-checked server-side.
+- The kid dashboard shows live progress toward the unlock ("2/3 rounds,
+  82% correct so far") before it's earned, and a distinct bonus-round button
+  once it is - transparency was the point, not a surprise unlock.
+- Verified end-to-end against the real database with two throwaway
+  children: one that played 3/3 rounds at 100% correctly unlocked exactly 3
+  bonus Level 2 rounds (with a 4th correctly refused once used up); one that
+  played 3/3 rounds at 0% correctly stayed locked, with the dashboard
+  showing accurate progress numbers and a direct bonus-round request
+  correctly refused. A Level 2 base child (already at `MAX_LEVEL`) correctly
+  shows no bonus UI at all.

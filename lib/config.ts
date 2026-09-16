@@ -16,9 +16,26 @@ export const LEVELS: Record<Level, { label: string; perQuestionSeconds: number }
   1: { label: "Level 1", perQuestionSeconds: 45 },
   2: { label: "Level 2", perQuestionSeconds: 90 },
 };
+export const MAX_LEVEL: Level = 2;
+
+/** The level directly above `level`, or null if it's already the top
+ * (currently always the case for level 2 - there's no level 3 content yet).
+ * Adding a new top level later is: bump the Level type/MAX_LEVEL, add its
+ * LEVELS/POINTS_PER_CORRECT/PERFECT_ROUND_BONUS entries, and seed its
+ * question bank - this function needs no change. */
+export function nextLevel(level: Level): Level | null {
+  return level < MAX_LEVEL ? ((level + 1) as Level) : null;
+}
 
 export const QUESTIONS_PER_ROUND = 5;
 export const MAX_ROUNDS_PER_DAY = 3;
+
+// A child who finishes all of today's MAX_ROUNDS_PER_DAY rounds at their own
+// level with better than this accuracy unlocks BONUS_ROUNDS_PER_DAY extra
+// rounds at the next level up, for that day only - resets with the daily
+// round count. Not a permanent level change; see docs/blueprint.md.
+export const LEVEL_UNLOCK_ACCURACY_THRESHOLD = 0.75;
+export const BONUS_ROUNDS_PER_DAY = 3;
 
 // Points are deliberately close across levels: a harder question should feel
 // harder, not pay a wildly different daily wage. See docs/blueprint.md

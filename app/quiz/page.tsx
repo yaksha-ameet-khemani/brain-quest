@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAutoRefresh } from "@/components/AutoRefresh";
 
 interface Question {
@@ -43,7 +44,17 @@ const CATEGORY_LABEL: Record<string, string> = {
 };
 
 export default function QuizPage() {
+  return (
+    <Suspense fallback={<CenteredMessage>Loading…</CenteredMessage>}>
+      <QuizPageInner />
+    </Suspense>
+  );
+}
+
+function QuizPageInner() {
   useAutoRefresh();
+  const searchParams = useSearchParams();
+  const requestedLevel = searchParams.get("level");
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<string | null>(null);
   const [round, setRound] = useState<RoundStart | null>(null);
@@ -79,7 +90,11 @@ export default function QuizPage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/round/start", { method: "POST" });
+        const res = await fetch("/api/round/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestedLevel ? { level: Number(requestedLevel) } : {}),
+        });
         const data = await res.json();
         if (!res.ok) {
           setError(data.error ?? "Could not start a round.");
@@ -99,7 +114,7 @@ export default function QuizPage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [startTimer]);
+  }, [startTimer, requestedLevel]);
 
   // Auto-submit as a miss once the timer hits zero, so a kid who freezes up
   // still sees the explanation instead of being stuck.

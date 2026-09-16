@@ -4,12 +4,13 @@ import { requireKid } from "@/lib/requireKid";
 import { buildRoundQuestions } from "@/lib/buildRound";
 import { sanitizeQuestion } from "@/lib/sanitizeQuestion";
 import { todayRangeUtc } from "@/lib/timezone";
-import { LEVELS, MAX_ROUNDS_PER_DAY, QUESTIONS_PER_ROUND, type Level } from "@/lib/config";
+import { getLevelProgress } from "@/lib/levelProgress";
+import { BONUS_ROUNDS_PER_DAY, LEVELS, MAX_ROUNDS_PER_DAY, QUESTIONS_PER_ROUND, type Level } from "@/lib/config";
 import type { ChildRow, RoundQuestionRow, RoundRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(req: Request) {
   const kid = await requireKid();
   if (!kid) return NextResponse.json({ error: "Sign-in required." }, { status: 401 });
 
@@ -18,7 +19,7 @@ export async function POST() {
     [kid.childId]
   );
   if (!child) return NextResponse.json({ error: "Profile not found." }, { status: 404 });
-  const level = child.level;
+  const baseLevel = child.level;
 
   // Resume an existing in-progress round rather than starting a new one -
   // so closing the browser mid-quiz doesn't lose progress or burn a daily slot.
@@ -37,12 +38,37 @@ export async function POST() {
     await queryOne("UPDATE rounds SET status = 'abandoned' WHERE id = $1", [existingRound.id]);
   }
 
+  // Which level to actually play: a kid's own base level by default, or -
+  // if they've earned it today - the bonus level one up from that. See
+  // lib/levelProgress.ts for the unlock rule.
+  const body = await req.json().catch(() => null);
+  const requestedLevel: number | undefined = body?.level;
+
+  let level: Level = baseLevel;
+  if (requestedLevel !== undefined && requestedLevel !== baseLevel) {
+    const progress = await getLevelProgress(kid.childId, baseLevel);
+    if (requestedLevel !== progress.bonusLevel || !progress.bonusUnlockedToday) {
+      return NextResponse.json(
+        { error: "That level isn't unlocked for you today yet." },
+        { status: 403 }
+      );
+    }
+    if (progress.bonusRoundsRemaining <= 0) {
+      return NextResponse.json(
+        { error: "You've used all your bonus rounds for today. Come back tomorrow!" },
+        { status: 403 }
+      );
+    }
+    level = requestedLevel as Level;
+  }
+
   const { start, end } = todayRangeUtc();
+  const dailyCap = level === baseLevel ? MAX_ROUNDS_PER_DAY : BONUS_ROUNDS_PER_DAY;
   const countRow = await queryOne<{ count: string }>(
-    "SELECT count(*) FROM rounds WHERE child_id = $1 AND started_at >= $2 AND started_at < $3",
-    [kid.childId, start.toISOString(), end.toISOString()]
+    "SELECT count(*) FROM rounds WHERE child_id = $1 AND level = $2 AND started_at >= $3 AND started_at < $4",
+    [kid.childId, level, start.toISOString(), end.toISOString()]
   );
-  if (Number(countRow?.count ?? 0) >= MAX_ROUNDS_PER_DAY) {
+  if (Number(countRow?.count ?? 0) >= dailyCap) {
     return NextResponse.json(
       { error: "You've played all your rounds for today. Come back tomorrow!" },
       { status: 403 }

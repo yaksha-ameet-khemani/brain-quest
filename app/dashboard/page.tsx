@@ -3,8 +3,8 @@ import Link from "next/link";
 import { requireKid } from "@/lib/requireKid";
 import { queryOne } from "@/lib/db";
 import { getBalance } from "@/lib/balance";
+import { getLevelProgress } from "@/lib/levelProgress";
 import { LEVELS, MAX_ROUNDS_PER_DAY, type Level } from "@/lib/config";
-import { todayRangeUtc } from "@/lib/timezone";
 import type { ChildRow } from "@/lib/types";
 import KidLogoutButton from "@/components/KidLogoutButton";
 import Avatar from "@/components/Avatar";
@@ -24,13 +24,8 @@ export default async function DashboardPage() {
 
   const balance = await getBalance(kid.childId);
   const level = child.level as Level;
-
-  const { start, end } = todayRangeUtc();
-  const countRow = await queryOne<{ count: string }>(
-    "SELECT count(*) FROM rounds WHERE child_id = $1 AND started_at >= $2 AND started_at < $3",
-    [kid.childId, start.toISOString(), end.toISOString()]
-  );
-  const roundsLeft = Math.max(0, MAX_ROUNDS_PER_DAY - Number(countRow?.count ?? 0));
+  const progress = await getLevelProgress(kid.childId, level);
+  const baseRoundsLeft = Math.max(0, MAX_ROUNDS_PER_DAY - progress.baseRoundsToday);
 
   return (
     <main className="flex flex-col gap-8 pt-6">
@@ -54,17 +49,21 @@ export default async function DashboardPage() {
       </section>
 
       <section className="grid gap-4">
-        {roundsLeft > 0 ? (
+        {baseRoundsLeft > 0 ? (
           <Link
             href="/quiz"
             className="rounded-2xl bg-brand-500 p-6 text-center text-lg font-bold text-white shadow-sm active:bg-brand-600"
           >
-            🎯 Start a quiz round ({roundsLeft} left today)
+            🎯 Start a quiz round ({baseRoundsLeft} left today)
           </Link>
         ) : (
           <div className="rounded-2xl bg-slate-100 p-6 text-center text-slate-500">
-            You&apos;ve played all your rounds for today - come back tomorrow! 🌙
+            You&apos;ve finished today&apos;s {LEVELS[level].label} rounds! 🌙
           </div>
+        )}
+
+        {progress.bonusLevel && (
+          <BonusRoundCard progress={progress} bonusLevel={progress.bonusLevel} />
         )}
 
         <Link
@@ -75,5 +74,45 @@ export default async function DashboardPage() {
         </Link>
       </section>
     </main>
+  );
+}
+
+function BonusRoundCard({
+  progress,
+  bonusLevel,
+}: {
+  progress: Awaited<ReturnType<typeof getLevelProgress>>;
+  bonusLevel: Level;
+}) {
+  if (progress.bonusUnlockedToday && progress.bonusRoundsRemaining > 0) {
+    return (
+      <Link
+        href={`/quiz?level=${bonusLevel}`}
+        className="rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 p-6 text-center text-lg font-bold text-white shadow-sm active:opacity-90"
+      >
+        🌟 Bonus {LEVELS[bonusLevel].label} round! ({progress.bonusRoundsRemaining} left today)
+      </Link>
+    );
+  }
+
+  if (progress.bonusUnlockedToday) {
+    return (
+      <div className="rounded-2xl bg-amber-50 p-4 text-center text-sm font-medium text-amber-700 ring-1 ring-amber-200">
+        🌟 You used up today&apos;s {LEVELS[bonusLevel].label} bonus rounds - amazing work!
+      </div>
+    );
+  }
+
+  const accuracyPct = progress.baseAccuracyToday !== null ? Math.round(progress.baseAccuracyToday * 100) : null;
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4 text-center text-sm text-slate-500 ring-1 ring-slate-200">
+      🔒 Finish all {progress.baseRoundsRequired} of today&apos;s rounds with over 75% correct to unlock a{" "}
+      {LEVELS[bonusLevel].label} bonus round.
+      <br />
+      <span className="font-semibold text-slate-600">
+        {progress.baseRoundsToday}/{progress.baseRoundsRequired} rounds done
+        {accuracyPct !== null && ` · ${accuracyPct}% correct so far`}
+      </span>
+    </div>
   );
 }
