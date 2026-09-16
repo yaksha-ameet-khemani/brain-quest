@@ -53,18 +53,33 @@ household app.
 Need another parent to have their own login (e.g. a spouse)? Sign in as
 admin, go to **🛡️ Manage parent accounts** on the dashboard, and add them
 there - that's the only way a second parent account gets created, since
-public sign-up is closed. Admin and parent accounts see the same
-child data (all parents share one pool of children); the admin's only extra
-power is managing other parent accounts.
+public sign-up is closed. Each parent only sees/manages the children *they*
+created; admin sees and manages everyone's, and is the only one who can
+create a child under a parent other than themselves, manage the shared
+question bank, or set a child's per-category priority weights.
 
 ## 5. Deploy to Vercel (free)
 
-1. Push this repo to a **private** GitHub repo (free).
-2. Go to https://vercel.com, "Add New… → Project", import the repo.
+1. Push this repo to GitHub (public or private, free either way).
+2. Go to https://vercel.com, "Add New… → Project".
+   - If you're fine connecting your GitHub account to Vercel: import the
+     repo the normal way - every future `git push` to the default branch
+     then auto-deploys.
+   - If you'd rather not link GitHub to Vercel at all (e.g. different
+     account/identity), and your repo is **public**: paste the repo's URL
+     into the "Ask v0 to build or enter a Git repository URL…" box on
+     Vercel's New Project screen instead of using the "Import Git
+     Repository" provider buttons below it - this clones the repo directly
+     with no account connection. The trade-off: it's a one-time snapshot,
+     not continuous deployment - after every future push, go to the
+     project's Deployments tab and click **Redeploy** manually to pick up
+     the new commit.
 3. In the project's **Settings → Environment Variables**, add the same
    variables from your `.env.local`.
-4. Deploy. You get a free `your-project.vercel.app` URL - no domain purchase
-   needed. Every future `git push` to the default branch auto-deploys.
+4. Deploy (or Redeploy, if you did the URL-paste import - the first deploy
+   from that flow doesn't wait for env vars, so add them and redeploy once
+   right after). You get a free `your-project.vercel.app` URL - no domain
+   purchase needed.
 
 ## 6. Keep the database from going idle (free)
 
@@ -85,11 +100,17 @@ GitHub's free Actions minutes.
 ## 7. Add your kids
 
 Sign in at `/login/parent`, scroll to "Add a child profile", and create one
-entry per kid (name, avatar emoji, level, a 4-6 digit PIN they'll remember).
-They pick their profile from the home page and enter that PIN to play.
+entry per kid (name, an optional real photo or an emoji avatar, level, a
+4-6 digit PIN they'll remember). If you're signed in as admin, you'll also
+pick which parent the child belongs to. They pick their profile from the
+home page and enter that PIN to play.
 
 ## Rebalancing the game later
 
 Every point value, timer, and default reward lives in one file:
-`lib/config.ts`. Change a number there, redeploy (push to GitHub - Vercel
-picks it up automatically), done.
+`lib/config.ts`. Change a number there and redeploy (see "Deploy to
+Vercel" above for what redeploying actually means for your setup).
+
+For finer per-child tuning without touching code: sign in as admin, open a
+child's page from the dashboard, and adjust their per-category priority
+weights, or manage individual questions from the **Question Bank** page.
