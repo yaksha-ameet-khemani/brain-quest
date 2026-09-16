@@ -7,6 +7,7 @@ import { LEVELS, MAX_ROUNDS_PER_DAY, type Level } from "@/lib/config";
 import { todayRangeUtc } from "@/lib/timezone";
 import type { ChildRow } from "@/lib/types";
 import KidLogoutButton from "@/components/KidLogoutButton";
+import Avatar from "@/components/Avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +15,8 @@ export default async function DashboardPage() {
   const kid = await requireKid();
   if (!kid) redirect("/");
 
-  const child = await queryOne<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
-    "SELECT id, name, avatar, level FROM children WHERE id = $1",
+  const child = await queryOne<Pick<ChildRow, "id" | "name" | "avatar" | "photo_data_url" | "level">>(
+    "SELECT id, name, avatar, photo_data_url, level FROM children WHERE id = $1",
     [kid.childId]
   );
   if (!child) redirect("/");
@@ -34,7 +35,9 @@ export default async function DashboardPage() {
     <main className="flex flex-col gap-8 pt-6">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-4xl">{child.avatar}</span>
+          <span className="flex h-14 w-14 items-center justify-center text-4xl">
+            <Avatar photoDataUrl={child.photo_data_url} avatar={child.avatar} name={child.name} />
+          </span>
           <div>
             <h1 className="text-xl font-bold">{child.name}</h1>
             <p className="text-sm text-slate-500">{LEVELS[level].label}</p>

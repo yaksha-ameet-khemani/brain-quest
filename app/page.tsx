@@ -3,13 +3,14 @@ import { query } from "@/lib/db";
 import type { ChildRow } from "@/lib/types";
 import { getPublicActivity } from "@/lib/publicActivity";
 import { formatDuration, formatRelativeTime } from "@/lib/format";
+import Avatar from "@/components/Avatar";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const [children, activity] = await Promise.all([
-    query<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
-      "SELECT id, name, avatar, level FROM children ORDER BY created_at ASC"
+    query<Pick<ChildRow, "id" | "name" | "avatar" | "photo_data_url" | "level">>(
+      "SELECT id, name, avatar, photo_data_url, level FROM children ORDER BY created_at ASC"
     ),
     getPublicActivity(),
   ]);
@@ -28,7 +29,9 @@ export default async function HomePage() {
             href={`/kid/${child.id}`}
             className="flex flex-col items-center gap-2 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100 transition hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
           >
-            <span className="text-5xl">{child.avatar}</span>
+            <span className="flex h-16 w-16 items-center justify-center text-5xl">
+              <Avatar photoDataUrl={child.photo_data_url} avatar={child.avatar} name={child.name} />
+            </span>
             <span className="text-lg font-semibold">{child.name}</span>
           </Link>
         ))}
@@ -49,8 +52,11 @@ export default async function HomePage() {
             {activity.map((a) => (
               <div key={a.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
                 <div className="flex items-center justify-between">
-                  <p className="font-semibold">
-                    {a.avatar} {a.name}
+                  <p className="flex items-center gap-2 font-semibold">
+                    <span className="flex h-6 w-6 items-center justify-center text-xl">
+                      <Avatar photoDataUrl={a.photoDataUrl} avatar={a.avatar} name={a.name} />
+                    </span>
+                    {a.name}
                   </p>
                   <p className="text-xs text-slate-400">Last login: {formatRelativeTime(a.lastLogin)}</p>
                 </div>

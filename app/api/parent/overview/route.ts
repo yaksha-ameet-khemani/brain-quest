@@ -22,11 +22,11 @@ export async function GET() {
 
   const children =
     parent.role === "admin"
-      ? await query<Pick<ChildRow, "id" | "name" | "avatar" | "level" | "parent_id">>(
-          "SELECT id, name, avatar, level, parent_id FROM children ORDER BY created_at ASC"
+      ? await query<Pick<ChildRow, "id" | "name" | "avatar" | "photo_data_url" | "level" | "parent_id">>(
+          "SELECT id, name, avatar, photo_data_url, level, parent_id FROM children ORDER BY created_at ASC"
         )
-      : await query<Pick<ChildRow, "id" | "name" | "avatar" | "level" | "parent_id">>(
-          "SELECT id, name, avatar, level, parent_id FROM children WHERE parent_id = $1 ORDER BY created_at ASC",
+      : await query<Pick<ChildRow, "id" | "name" | "avatar" | "photo_data_url" | "level" | "parent_id">>(
+          "SELECT id, name, avatar, photo_data_url, level, parent_id FROM children WHERE parent_id = $1 ORDER BY created_at ASC",
           [parent.id]
         );
 
@@ -65,7 +65,13 @@ export async function GET() {
       }
 
       return {
-        child: { id: child.id, name: child.name, avatar: child.avatar, level: child.level },
+        child: {
+          id: child.id,
+          name: child.name,
+          avatar: child.avatar,
+          photoDataUrl: child.photo_data_url,
+          level: child.level,
+        },
         parentEmail: emailByParentId.get(child.parent_id) ?? null,
         balance,
         roundsPlayed,

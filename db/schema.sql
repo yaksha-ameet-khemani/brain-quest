@@ -48,7 +48,8 @@ create table children (
   id uuid primary key default gen_random_uuid(),
   parent_id uuid not null references parents (id),
   name text not null,
-  avatar text not null default '🙂',
+  avatar text not null default '🙂', -- emoji fallback, shown when photo_data_url is null
+  photo_data_url text, -- optional photo, already resized/compressed client-side (see lib/imageResize.ts)
   level smallint not null check (level in (1, 2)), -- 1 = younger / 2 = older group, not tied to a school grade number
   pin_hash text not null,
   created_at timestamptz not null default now()

@@ -48,6 +48,10 @@ export const SPEED_BONUS_POINTS = 2;
 // 3 rounds * 5 questions * (points + streak + speed) + perfect bonuses.
 // Level 1 worst case ~= 3*(5*10*1.5 + 8 + 5*2) ≈ 279 -> still reasonable.
 
+// Server-side backstop matching lib/imageResize.ts's client-side cap - the
+// client should never send more than this, but never trust that alone.
+export const MAX_PHOTO_DATA_URL_LENGTH = 350_000;
+
 export const DEFAULT_REWARDS: { name: string; cost: number; emoji: string }[] = [
   { name: "Small snack or ice cream", cost: 50, emoji: "🍦" },
   { name: "30 minutes extra screen time", cost: 50, emoji: "📺" },

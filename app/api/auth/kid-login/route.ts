@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   }
 
   const child = await queryOne<ChildRow>(
-    "SELECT id, name, avatar, level, pin_hash FROM children WHERE id = $1",
+    "SELECT id, name, avatar, photo_data_url, level, pin_hash FROM children WHERE id = $1",
     [childId]
   );
 
@@ -40,7 +40,13 @@ export async function POST(req: Request) {
 
   const token = createKidSessionToken(child.id);
   const res = NextResponse.json({
-    child: { id: child.id, name: child.name, avatar: child.avatar, level: child.level },
+    child: {
+      id: child.id,
+      name: child.name,
+      avatar: child.avatar,
+      photoDataUrl: child.photo_data_url,
+      level: child.level,
+    },
   });
   res.cookies.set(KID_COOKIE_NAME, token, kidCookieOptions);
   return res;

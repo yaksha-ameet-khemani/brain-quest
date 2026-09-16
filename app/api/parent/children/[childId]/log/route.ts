@@ -34,11 +34,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ childId
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
 
-  const child = await queryOne<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
-    "SELECT id, name, avatar, level FROM children WHERE id = $1",
+  const childRow = await queryOne<Pick<ChildRow, "id" | "name" | "avatar" | "photo_data_url" | "level">>(
+    "SELECT id, name, avatar, photo_data_url, level FROM children WHERE id = $1",
     [childId]
   );
-  if (!child) return NextResponse.json({ error: "Not found." }, { status: 404 });
+  if (!childRow) return NextResponse.json({ error: "Not found." }, { status: 404 });
+  const child = {
+    id: childRow.id,
+    name: childRow.name,
+    avatar: childRow.avatar,
+    photoDataUrl: childRow.photo_data_url,
+    level: childRow.level,
+  };
 
   const rows = await query<LogRow>(
     `SELECT

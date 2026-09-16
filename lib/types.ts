@@ -17,6 +17,7 @@ export interface ChildRow {
   parent_id: string;
   name: string;
   avatar: string;
+  photo_data_url: string | null;
   level: 1 | 2;
   pin_hash: string;
   created_at: string;

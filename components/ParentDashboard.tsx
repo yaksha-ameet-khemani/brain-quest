@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import Avatar from "@/components/Avatar";
+import { fileToResizedDataUrl, ImageTooLargeError } from "@/lib/imageResize";
 
 interface CategoryStat {
   category: string;
@@ -10,7 +12,7 @@ interface CategoryStat {
   total: number;
 }
 interface ChildOverview {
-  child: { id: string; name: string; avatar: string; level: 1 | 2 };
+  child: { id: string; name: string; avatar: string; photoDataUrl: string | null; level: 1 | 2 };
   parentEmail: string | null;
   balance: number;
   roundsPlayed: number;
@@ -23,7 +25,7 @@ interface Redemption {
   cost: number;
   status: "pending" | "approved" | "denied" | "fulfilled";
   requested_at: string;
-  child?: { name: string; avatar: string } | null;
+  child?: { name: string; avatar: string; photoDataUrl?: string | null } | null;
 }
 interface ParentAccount {
   id: string;
@@ -46,8 +48,31 @@ export default function ParentDashboard({
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const [newChild, setNewChild] = useState({ name: "", level: "1", pin: "", avatar: "🙂", parentId: "" });
+  const [newChild, setNewChild] = useState<{
+    name: string;
+    level: string;
+    pin: string;
+    avatar: string;
+    parentId: string;
+    photoDataUrl: string | null;
+  }>({ name: "", level: "1", pin: "", avatar: "🙂", parentId: "", photoDataUrl: null });
   const [creating, setCreating] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [processingPhoto, setProcessingPhoto] = useState(false);
+
+  async function handlePhotoFile(file: File | undefined) {
+    if (!file) return;
+    setPhotoError(null);
+    setProcessingPhoto(true);
+    try {
+      const dataUrl = await fileToResizedDataUrl(file);
+      setNewChild((s) => ({ ...s, photoDataUrl: dataUrl }));
+    } catch (err) {
+      setPhotoError(err instanceof ImageTooLargeError ? err.message : "Could not process that photo.");
+    } finally {
+      setProcessingPhoto(false);
+    }
+  }
 
   const [newParent, setNewParent] = useState({ email: "", password: "" });
   const [creatingParent, setCreatingParent] = useState(false);
@@ -106,6 +131,7 @@ export default function ParentDashboard({
           level: Number(newChild.level),
           pin: newChild.pin,
           avatar: newChild.avatar,
+          photoDataUrl: newChild.photoDataUrl,
           ...(role === "admin" ? { parentId: newChild.parentId } : {}),
         }),
       });
@@ -114,7 +140,7 @@ export default function ParentDashboard({
         setMessage(data.error ?? "Could not add child.");
         return;
       }
-      setNewChild({ name: "", level: "1", pin: "", avatar: "🙂", parentId: "" });
+      setNewChild({ name: "", level: "1", pin: "", avatar: "🙂", parentId: "", photoDataUrl: null });
       setMessage(`Added ${data.child.name}!`);
       await refresh();
     } finally {
@@ -191,8 +217,11 @@ export default function ParentDashboard({
           {pending.map((r) => (
             <div key={r.id} className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
               <div>
-                <p className="font-semibold">
-                  {r.child?.avatar} {r.child?.name} wants: {r.reward_name}
+                <p className="flex items-center gap-1.5 font-semibold">
+                  <span className="flex h-5 w-5 items-center justify-center text-base">
+                    <Avatar photoDataUrl={r.child?.photoDataUrl} avatar={r.child?.avatar ?? "🙂"} name={r.child?.name} />
+                  </span>
+                  {r.child?.name} wants: {r.reward_name}
                 </p>
                 <p className="text-sm text-slate-500">{r.cost} pts</p>
               </div>
@@ -222,8 +251,11 @@ export default function ParentDashboard({
               .filter((d) => d.status === "approved")
               .map((r) => (
                 <div key={r.id} className="flex items-center justify-between rounded-2xl bg-amber-50 p-4 text-sm ring-1 ring-amber-200">
-                  <span>
-                    {r.child?.avatar} {r.child?.name}: {r.reward_name} (approved, not yet given)
+                  <span className="flex items-center gap-1.5">
+                    <span className="flex h-5 w-5 items-center justify-center text-base">
+                      <Avatar photoDataUrl={r.child?.photoDataUrl} avatar={r.child?.avatar ?? "🙂"} name={r.child?.name} />
+                    </span>
+                    {r.child?.name}: {r.reward_name} (approved, not yet given)
                   </span>
                   <button
                     disabled={busy === r.id}
@@ -244,8 +276,11 @@ export default function ParentDashboard({
           {overview.map((o) => (
             <div key={o.child.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
               <div className="flex items-center justify-between">
-                <p className="font-semibold">
-                  {o.child.avatar} {o.child.name} · Level {o.child.level}
+                <p className="flex items-center gap-1.5 font-semibold">
+                  <span className="flex h-6 w-6 items-center justify-center text-lg">
+                    <Avatar photoDataUrl={o.child.photoDataUrl} avatar={o.child.avatar} name={o.child.name} />
+                  </span>
+                  {o.child.name} · Level {o.child.level}
                 </p>
                 <p className="font-bold text-brand-600">{o.balance} pts</p>
               </div>
@@ -324,6 +359,33 @@ export default function ParentDashboard({
               <option value="1">Level 1 (younger)</option>
               <option value="2">Level 2 (older)</option>
             </select>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-50 text-3xl ring-1 ring-slate-200">
+              <Avatar photoDataUrl={newChild.photoDataUrl} avatar={newChild.avatar || "🙂"} />
+            </span>
+            <div className="flex-1">
+              <label className="inline-block cursor-pointer rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-600">
+                {processingPhoto ? "Processing…" : newChild.photoDataUrl ? "Change photo" : "Add a photo (optional)"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={processingPhoto}
+                  onChange={(e) => handlePhotoFile(e.target.files?.[0])}
+                />
+              </label>
+              {newChild.photoDataUrl && (
+                <button
+                  type="button"
+                  onClick={() => setNewChild((s) => ({ ...s, photoDataUrl: null }))}
+                  className="ml-2 text-xs text-rose-500 underline"
+                >
+                  Remove
+                </button>
+              )}
+              {photoError && <p className="mt-1 text-xs text-rose-600">{photoError}</p>}
+            </div>
           </div>
           <input
             required

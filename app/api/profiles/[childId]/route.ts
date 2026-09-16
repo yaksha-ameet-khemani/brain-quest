@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { requireParent } from "@/lib/requireParent";
 import { hashPin } from "@/lib/pin";
+import { MAX_PHOTO_DATA_URL_LENGTH } from "@/lib/config";
 import type { ChildRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ childI
     sets.push(`pin_hash = $${i++}`);
     values.push(hashPin(body.pin));
   }
+  if ("photoDataUrl" in (body ?? {})) {
+    if (body.photoDataUrl === null) {
+      // Explicit null clears the photo, falling back to the emoji avatar.
+      sets.push(`photo_data_url = $${i++}`);
+      values.push(null);
+    } else if (typeof body.photoDataUrl === "string" && body.photoDataUrl.startsWith("data:image/")) {
+      if (body.photoDataUrl.length > MAX_PHOTO_DATA_URL_LENGTH) {
+        return NextResponse.json({ error: "That photo is too large." }, { status: 400 });
+      }
+      sets.push(`photo_data_url = $${i++}`);
+      values.push(body.photoDataUrl);
+    } else {
+      return NextResponse.json({ error: "Invalid photo." }, { status: 400 });
+    }
+  }
   if (typeof body?.parentId === "string") {
     if (parent.role !== "admin") {
       return NextResponse.json({ error: "Only admin can reassign a child to a different parent." }, { status: 403 });
@@ -67,12 +83,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ childI
   }
 
   values.push(childId);
-  const child = await queryOne<Pick<ChildRow, "id" | "name" | "avatar" | "level">>(
-    `UPDATE children SET ${sets.join(", ")} WHERE id = $${i} RETURNING id, name, avatar, level`,
+  const child = await queryOne<Pick<ChildRow, "id" | "name" | "avatar" | "photo_data_url" | "level">>(
+    `UPDATE children SET ${sets.join(", ")} WHERE id = $${i} RETURNING id, name, avatar, photo_data_url, level`,
     values
   );
   if (!child) return NextResponse.json({ error: "Update failed." }, { status: 500 });
-  return NextResponse.json({ child });
+  return NextResponse.json({
+    child: {
+      id: child.id,
+      name: child.name,
+      avatar: child.avatar,
+      photoDataUrl: child.photo_data_url,
+      level: child.level,
+    },
+  });
 }
 
 // DELETE: remove a child profile entirely (cascades to their rounds/points/

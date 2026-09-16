@@ -14,9 +14,11 @@ export async function GET() {
 
   const children =
     parent.role === "admin"
-      ? await query<Pick<ChildRow, "id" | "name" | "avatar">>("SELECT id, name, avatar FROM children")
-      : await query<Pick<ChildRow, "id" | "name" | "avatar">>(
-          "SELECT id, name, avatar FROM children WHERE parent_id = $1",
+      ? await query<Pick<ChildRow, "id" | "name" | "avatar" | "photo_data_url">>(
+          "SELECT id, name, avatar, photo_data_url FROM children"
+        )
+      : await query<Pick<ChildRow, "id" | "name" | "avatar" | "photo_data_url">>(
+          "SELECT id, name, avatar, photo_data_url FROM children WHERE parent_id = $1",
           [parent.id]
         );
   const childById = new Map(children.map((c) => [c.id, c]));
@@ -46,7 +48,11 @@ export async function GET() {
   const redemptions = rows.map((r) => ({
     ...r,
     child: childById.has(r.child_id)
-      ? { name: childById.get(r.child_id)!.name, avatar: childById.get(r.child_id)!.avatar }
+      ? {
+          name: childById.get(r.child_id)!.name,
+          avatar: childById.get(r.child_id)!.avatar,
+          photoDataUrl: childById.get(r.child_id)!.photo_data_url,
+        }
       : null,
   }));
 

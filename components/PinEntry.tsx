@@ -2,15 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Avatar from "@/components/Avatar";
 
 export default function PinEntry({
   childId,
   name,
   avatar,
+  photoDataUrl,
 }: {
   childId: string;
   name: string;
   avatar: string;
+  photoDataUrl?: string | null;
 }) {
   const router = useRouter();
   const [pin, setPin] = useState("");
@@ -51,7 +54,9 @@ export default function PinEntry({
 
   return (
     <main className="flex flex-col items-center gap-6 pt-10 text-center">
-      <div className="text-6xl">{avatar}</div>
+      <div className="flex h-24 w-24 items-center justify-center text-6xl">
+        <Avatar photoDataUrl={photoDataUrl} avatar={avatar} name={name} />
+      </div>
       <h1 className="text-2xl font-semibold">Hi, {name}! Enter your PIN</h1>
 
       <div className="flex gap-3">

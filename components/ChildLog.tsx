@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatDuration } from "@/lib/format";
+import Avatar from "@/components/Avatar";
+import { fileToResizedDataUrl, ImageTooLargeError } from "@/lib/imageResize";
 
 interface LogEntry {
   roundId: string;
@@ -23,7 +25,65 @@ interface ChildInfo {
   id: string;
   name: string;
   avatar: string;
+  photoDataUrl: string | null;
   level: 1 | 2;
+}
+
+function ChildPhotoEditor({ child, onChanged }: { child: ChildInfo; onChanged: () => void }) {
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(photoDataUrl: string | null) {
+    setError(null);
+    setProcessing(true);
+    try {
+      const res = await fetch(`/api/profiles/${child.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ photoDataUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Could not update photo.");
+        return;
+      }
+      onChanged();
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  async function handleFile(file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    setProcessing(true);
+    try {
+      const dataUrl = await fileToResizedDataUrl(file);
+      await save(dataUrl);
+    } catch (err) {
+      setError(err instanceof ImageTooLargeError ? err.message : "Could not process that photo.");
+      setProcessing(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <label className="cursor-pointer rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+        {processing ? "…" : child.photoDataUrl ? "Change photo" : "Add photo"}
+        <input type="file" accept="image/*" className="hidden" disabled={processing} onChange={(e) => handleFile(e.target.files?.[0])} />
+      </label>
+      {child.photoDataUrl && (
+        <button
+          onClick={() => save(null)}
+          disabled={processing}
+          className="text-xs font-semibold text-rose-500 underline"
+        >
+          Remove
+        </button>
+      )}
+      {error && <p className="text-xs text-rose-600">{error}</p>}
+    </div>
+  );
 }
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -217,10 +277,15 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
       </Link>
 
       <header className="flex items-center gap-3">
-        <span className="text-4xl">{child.avatar}</span>
+        <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-slate-50 text-4xl ring-1 ring-slate-200">
+          <Avatar photoDataUrl={child.photoDataUrl} avatar={child.avatar} name={child.name} />
+        </span>
         <div>
           <h1 className="text-xl font-bold">{child.name}&apos;s full log</h1>
           <p className="text-sm text-slate-500">Level {child.level}</p>
+          <div className="mt-1">
+            <ChildPhotoEditor child={child} onChanged={refreshLog} />
+          </div>
         </div>
       </header>
 
