@@ -9,5 +9,5 @@ export default async function ChildLogPage({ params }: { params: Promise<{ child
   const parent = await requireParent();
   if (!parent) redirect("/login/parent");
 
-  return <ChildLog childId={childId} />;
+  return <ChildLog childId={childId} isAdmin={parent.role === "admin"} />;
 }

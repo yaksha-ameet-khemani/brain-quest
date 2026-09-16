@@ -1,4 +1,4 @@
-# Brain Quest - Blueprint (v4)
+# Brain Quest - Blueprint (v6)
 
 This revises `Kids Logic & Reward Quiz Web Application Blueprint.docx` (the
 original spec) based on a security/gameplay review. The changes are called
@@ -21,9 +21,9 @@ unchanged; Postgres is Postgres either way.
   can never be deleted. Every other parent account is created by the admin
   from the dashboard - public sign-up stays closed forever once the admin
   exists.
-- All parents (admin included) share one pool of children - there's no
-  per-parent ownership split anymore. Any parent can add/edit/delete any
-  child, approve any redemption, and see every child's data.
+- ~~All parents (admin included) share one pool of children~~ - **superseded,
+  see v5 below**: children went back to real per-parent ownership almost
+  immediately after this shipped.
 - `child_logins` records every successful kid PIN login, powering "last
   logged in" on both the public summary and the admin/parent detail view.
 - Two tiers of visibility, by deliberate design:
@@ -44,6 +44,43 @@ unchanged; Postgres is Postgres either way.
   low-traffic private deployment, URL not shared beyond the family, and the
   public tier is aggregate-only (no question content, no individual answers)
   - the sensitive detail stays behind the parent/admin login.
+
+**v5 update - real child ownership:** the "shared pool" from v4 lasted about
+one round-trip of user feedback. `children.parent_id` (renamed from
+`created_by`) is now `NOT NULL` with a real foreign key and no `ON DELETE`
+cascade (defaults to `RESTRICT`) - a parent only ever sees/manages their own
+children; admin sees/manages everyone's. Creating a child now requires
+knowing who it belongs to: a parent's own children are auto-owned by them,
+while admin must pick (or first create) the owning parent - there's no way
+to create an "orphaned" child. A parent who still has children can't be
+deleted (checked in-app with a clear message, and backed by the database
+itself as a second line of defense) - admin can reassign a child to a
+different parent first if they actually want to remove someone.
+
+**v6 update - question bank management + per-child category priority:**
+- Admin gets a **Question Bank** page (`/parent/questions`,
+  `/api/admin/questions`) to add, edit, and archive curated logic/riddle/
+  spatial questions (math stays generated, so it isn't managed here), and to
+  see each question's "proficiency" - attempts/correct/success-rate,
+  computed from `round_questions` history rather than stored redundantly.
+  There's no hard delete: a question that's ever been served is referenced
+  by a child's permanent answer history, so "archive" (`is_active = false`)
+  is what removing one from rotation means.
+- New `child_category_weights` table: a per-child, per-category relative
+  weight (default equal across all four categories) that an admin can tune
+  from that child's log page - e.g. weight logic higher for a child who's
+  weak there, per the category breakdown that's already on the dashboard.
+  Weight 0 means "never this category for this child"; if every category
+  somehow ends up weight 0, round-building falls back to equal odds instead
+  of erroring.
+- `lib/buildRound.ts` was reworked around this: each of the
+  `QUESTIONS_PER_ROUND` slots in a round independently draws a category via
+  weighted random choice, then pulls a question for that category (bank
+  lookup, or a freshly generated one for math) - replacing the old fixed
+  "3 bank + 2 generated" split. If a chosen category's bank pool is empty at
+  that child's level (nothing seeded, or everything archived), it falls
+  back to another category with something available, and ultimately to
+  generated math, which is never empty - a round can never fail to build.
 
 ## Goal
 

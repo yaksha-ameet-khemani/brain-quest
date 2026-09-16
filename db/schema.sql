@@ -66,6 +66,20 @@ create table child_logins (
 create index child_logins_child_idx on child_logins (child_id, logged_in_at);
 
 -- ---------------------------------------------------------------------------
+-- Per-child, per-category relative weight, admin-managed - lets an admin
+-- give a child more practice in a weak area (or dial an easy one down)
+-- without touching the question bank itself. A category with no row here
+-- uses lib/config.ts's DEFAULT_CATEGORY_WEIGHT (equal odds). weight = 0
+-- means "never pick this category for this child".
+-- ---------------------------------------------------------------------------
+create table child_category_weights (
+  child_id uuid not null references children (id) on delete cascade,
+  category text not null check (category in ('math', 'logic', 'riddle', 'spatial')),
+  weight int not null default 1 check (weight >= 0),
+  primary key (child_id, category)
+);
+
+-- ---------------------------------------------------------------------------
 -- Question bank (curated logic / riddle / spatial questions). Math questions
 -- are generated on the fly from templates (lib/mathQuestions.ts) instead of
 -- stored here, so the bank never "runs out" of math content.

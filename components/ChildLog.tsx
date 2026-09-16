@@ -26,7 +26,91 @@ interface ChildInfo {
   level: 1 | 2;
 }
 
-export default function ChildLog({ childId }: { childId: string }) {
+const CATEGORY_LABEL: Record<string, string> = {
+  math: "🔢 Math",
+  logic: "🧩 Logic",
+  riddle: "❓ Riddle",
+  spatial: "📐 Spatial",
+};
+
+function CategoryWeightsEditor({ childId }: { childId: string }) {
+  const [weights, setWeights] = useState<Record<string, number> | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch(`/api/admin/children/${childId}/weights`);
+      if (res.ok) setWeights((await res.json()).weights);
+    })();
+  }, [childId]);
+
+  async function save() {
+    if (!weights) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/children/${childId}/weights`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weights }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error ?? "Could not save.");
+        return;
+      }
+      setWeights(data.weights);
+      setMessage("Saved!");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!weights) return null;
+
+  const total = Object.values(weights).reduce((s, w) => s + w, 0);
+
+  return (
+    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+      <h2 className="font-bold">🎯 Section priorities</h2>
+      <p className="mt-1 text-xs text-slate-500">
+        Higher weight = shows up more often in this child&apos;s rounds. Set to 0 to skip a category
+        entirely. Equal weights (the default) means equal odds for all four.
+      </p>
+      <div className="mt-3 grid gap-3">
+        {Object.entries(weights).map(([category, weight]) => (
+          <div key={category} className="flex items-center gap-3">
+            <span className="w-24 text-sm font-medium">{CATEGORY_LABEL[category] ?? category}</span>
+            <input
+              type="range"
+              min={0}
+              max={10}
+              value={weight}
+              onChange={(e) => setWeights((w) => ({ ...w!, [category]: Number(e.target.value) }))}
+              className="flex-1"
+            />
+            <span className="w-16 text-right text-sm text-slate-500">
+              {weight} ({total > 0 ? Math.round((weight / total) * 100) : 0}%)
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {saving ? "…" : "Save priorities"}
+        </button>
+        {message && <p className="text-sm text-brand-700">{message}</p>}
+      </div>
+    </section>
+  );
+}
+
+export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmin: boolean }) {
   const [child, setChild] = useState<ChildInfo | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,6 +159,8 @@ export default function ChildLog({ childId }: { childId: string }) {
           <p className="text-sm text-slate-500">Level {child.level}</p>
         </div>
       </header>
+
+      {isAdmin && <CategoryWeightsEditor childId={childId} />}
 
       <section className="grid grid-cols-4 gap-2 text-center text-xs">
         <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-100">

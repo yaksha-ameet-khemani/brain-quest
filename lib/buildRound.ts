@@ -1,7 +1,8 @@
 import "server-only";
 import { query } from "@/lib/db";
 import { generateMathQuestions } from "@/lib/mathQuestions";
-import { QUESTIONS_PER_ROUND, type Level } from "@/lib/config";
+import { getCategoryWeights, pickWeightedCategories } from "@/lib/categoryWeights";
+import { BANK_CATEGORIES, QUESTIONS_PER_ROUND, type BankCategory, type Level } from "@/lib/config";
 import type { QuestionRow } from "@/lib/types";
 
 export interface RoundQuestionDraft {
@@ -25,42 +26,57 @@ function shuffleWithCorrectTracking(options: string[], correctIndex: number): { 
   return { options: shuffled, correctIndex: shuffled.indexOf(correctValue) };
 }
 
-function shuffleArray<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j]!, a[i]!];
-  }
-  return a;
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
-/** Picks QUESTIONS_PER_ROUND questions for a round: a mix of curated bank
- * questions (logic/riddle/spatial, options re-shuffled per serving so the
- * stored order never leaks a pattern) and freshly generated math questions
- * (which never run out). Bank questions the child has seen recently are
- * avoided when there's enough pool left to do so. */
-export async function buildRoundQuestions(level: Level, childId: string): Promise<RoundQuestionDraft[]> {
-  const BANK_COUNT = 3;
+function toDraft(q: QuestionRow): RoundQuestionDraft {
+  const { options, correctIndex } = shuffleWithCorrectTracking(q.options, q.correct_option_index);
+  return {
+    source: "bank",
+    questionId: q.id,
+    category: q.category,
+    questionText: q.question_text,
+    options,
+    correctIndex,
+    explanation: q.explanation,
+  };
+}
 
-  const bankPool = await query<QuestionRow>(
+function generatedDraft(level: Level): RoundQuestionDraft {
+  const [q] = generateMathQuestions(level, 1);
+  return {
+    source: "generated",
+    questionId: null,
+    category: q!.category,
+    questionText: q!.questionText,
+    options: q!.options,
+    correctIndex: q!.correctIndex,
+    explanation: q!.explanation,
+  };
+}
+
+/** Picks QUESTIONS_PER_ROUND questions for a round. Which category each of
+ * the 5 slots draws from is a weighted random pick per child (admin-tunable
+ * via lib/categoryWeights.ts - e.g. weight logic higher for a child who's
+ * shaky on it). Bank categories (logic/riddle/spatial) pull from the
+ * curated, admin-managed question bank with options re-shuffled per
+ * serving; math is generated fresh every time and never runs dry. Falls
+ * back gracefully (never fails to build a round) if a category's bank pool
+ * is empty at this child's level - tries another category with something
+ * available, then generated math as the final fallback since that's always
+ * available. */
+export async function buildRoundQuestions(level: Level, childId: string): Promise<RoundQuestionDraft[]> {
+  const weights = await getCategoryWeights(childId);
+  const wantedCategories = pickWeightedCategories(weights, QUESTIONS_PER_ROUND);
+
+  const bankRows = await query<QuestionRow>(
     "SELECT id, category, question_text, options, correct_option_index, explanation FROM questions WHERE level = $1 AND is_active = true",
     [level]
   );
-  if (bankPool.length === 0) {
-    // No curated questions seeded yet - fall back to an all-generated round
-    // rather than failing the whole round outright.
-    const generated = generateMathQuestions(level, QUESTIONS_PER_ROUND);
-    return shuffleArray(
-      generated.map((q) => ({
-        source: "generated" as const,
-        questionId: null,
-        category: q.category,
-        questionText: q.questionText,
-        options: q.options,
-        correctIndex: q.correctIndex,
-        explanation: q.explanation,
-      }))
-    );
+  const bankByCategory = new Map<BankCategory, QuestionRow[]>(BANK_CATEGORIES.map((c) => [c, []]));
+  for (const row of bankRows) {
+    bankByCategory.get(row.category)?.push(row);
   }
 
   const childRounds = await query<{ id: string }>("SELECT id FROM rounds WHERE child_id = $1", [childId]);
@@ -77,34 +93,40 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
     recentIds = new Set(recent.map((r) => r.question_id).filter((id): id is string => Boolean(id)));
   }
 
-  const unseen = bankPool.filter((q) => !recentIds.has(q.id));
-  const pool = unseen.length >= BANK_COUNT ? unseen : bankPool;
-  const chosen = shuffleArray(pool).slice(0, Math.min(BANK_COUNT, pool.length));
+  const usedThisRound = new Set<string>();
 
-  const bankDrafts: RoundQuestionDraft[] = chosen.map((q) => {
-    const { options, correctIndex } = shuffleWithCorrectTracking(q.options, q.correct_option_index);
-    return {
-      source: "bank",
-      questionId: q.id,
-      category: q.category,
-      questionText: q.question_text,
-      options,
-      correctIndex,
-      explanation: q.explanation,
-    };
-  });
+  function pickFromCategory(category: BankCategory): QuestionRow | null {
+    const pool = (bankByCategory.get(category) ?? []).filter((q) => !usedThisRound.has(q.id));
+    if (pool.length === 0) return null;
+    const unseen = pool.filter((q) => !recentIds.has(q.id));
+    return pickRandom(unseen.length > 0 ? unseen : pool);
+  }
 
-  const neededGenerated = QUESTIONS_PER_ROUND - bankDrafts.length;
-  const generated = generateMathQuestions(level, neededGenerated);
-  const generatedDrafts: RoundQuestionDraft[] = generated.map((q) => ({
-    source: "generated",
-    questionId: null,
-    category: q.category,
-    questionText: q.questionText,
-    options: q.options,
-    correctIndex: q.correctIndex,
-    explanation: q.explanation,
-  }));
+  const drafts: RoundQuestionDraft[] = [];
+  for (const category of wantedCategories) {
+    if (category === "math") {
+      drafts.push(generatedDraft(level));
+      continue;
+    }
 
-  return shuffleArray([...bankDrafts, ...generatedDrafts]);
+    let picked = pickFromCategory(category);
+    if (!picked) {
+      // Nothing left in the requested category - try any other bank
+      // category that still has something, before finally falling back to
+      // generated math (always available, never empty).
+      for (const fallback of BANK_CATEGORIES) {
+        picked = pickFromCategory(fallback);
+        if (picked) break;
+      }
+    }
+
+    if (picked) {
+      usedThisRound.add(picked.id);
+      drafts.push(toDraft(picked));
+    } else {
+      drafts.push(generatedDraft(level));
+    }
+  }
+
+  return drafts;
 }

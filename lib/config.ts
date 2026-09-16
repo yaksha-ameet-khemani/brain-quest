@@ -3,6 +3,15 @@
 
 export type Level = 1 | 2;
 
+export const CATEGORIES = ["math", "logic", "riddle", "spatial"] as const;
+export type Category = (typeof CATEGORIES)[number];
+export const BANK_CATEGORIES = ["logic", "riddle", "spatial"] as const;
+export type BankCategory = (typeof BANK_CATEGORIES)[number];
+
+// Default relative weight for a category a child has no explicit setting
+// for - equal odds across all four until an admin dials one up or down.
+export const DEFAULT_CATEGORY_WEIGHT = 1;
+
 export const LEVELS: Record<Level, { label: string; perQuestionSeconds: number }> = {
   1: { label: "Level 1", perQuestionSeconds: 45 },
   2: { label: "Level 2", perQuestionSeconds: 90 },

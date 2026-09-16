@@ -28,6 +28,12 @@ export interface ChildLoginRow {
   logged_in_at: string;
 }
 
+export interface ChildCategoryWeightRow {
+  child_id: string;
+  category: "math" | "logic" | "riddle" | "spatial";
+  weight: number;
+}
+
 export interface QuestionRow {
   id: string;
   level: 1 | 2;

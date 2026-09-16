@@ -172,9 +172,16 @@ export default function ParentDashboard({
           </h1>
           <p className="text-sm text-slate-500">{parentEmail}</p>
         </div>
-        <button onClick={signOut} className="text-sm text-slate-500 underline">
-          Sign out
-        </button>
+        <div className="flex items-center gap-4">
+          {role === "admin" && (
+            <Link href="/parent/questions" className="text-sm font-semibold text-brand-600 underline">
+              📚 Question Bank
+            </Link>
+          )}
+          <button onClick={signOut} className="text-sm text-slate-500 underline">
+            Sign out
+          </button>
+        </div>
       </header>
 
       <section>
