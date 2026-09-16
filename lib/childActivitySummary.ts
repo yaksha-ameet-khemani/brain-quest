@@ -1,5 +1,6 @@
 import "server-only";
 import { query } from "@/lib/db";
+import { getStreaks } from "@/lib/streak";
 
 export interface ChildActivitySummary {
   id: string;
@@ -12,6 +13,8 @@ export interface ChildActivitySummary {
   correct: number;
   wrong: number;
   totalTimeSeconds: number;
+  currentDailyStreak: number;
+  currentWeeklyStreak: number;
 }
 
 interface Row {
@@ -61,16 +64,23 @@ export async function getChildActivitySummary(): Promise<ChildActivitySummary[]>
     ORDER BY c.created_at ASC
   `);
 
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    avatar: r.avatar,
-    photoDataUrl: r.photo_data_url,
-    level: r.level,
-    lastLogin: r.last_login,
-    totalAttempted: Number(r.total_attempted),
-    correct: Number(r.correct),
-    wrong: Number(r.wrong),
-    totalTimeSeconds: Math.round(Number(r.total_time_seconds)),
-  }));
+  return Promise.all(
+    rows.map(async (r) => {
+      const streaks = await getStreaks(r.id);
+      return {
+        id: r.id,
+        name: r.name,
+        avatar: r.avatar,
+        photoDataUrl: r.photo_data_url,
+        level: r.level,
+        lastLogin: r.last_login,
+        totalAttempted: Number(r.total_attempted),
+        correct: Number(r.correct),
+        wrong: Number(r.wrong),
+        totalTimeSeconds: Math.round(Number(r.total_time_seconds)),
+        currentDailyStreak: streaks.currentDailyStreak,
+        currentWeeklyStreak: streaks.currentWeeklyStreak,
+      };
+    })
+  );
 }

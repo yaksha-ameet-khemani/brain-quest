@@ -65,6 +65,9 @@ Open http://localhost:3000.
   "review round" - pure practice, never scored and never counted against
   the daily round limit. Getting one right on review retires it; getting it
   wrong again keeps it coming back.
+- A dashboard badge recognizes daily/weekly play streaks ("🔥 4 day streak
+  · 🗓️ 1 week streak") - no extra mechanic, just showing up consistently
+  gets noticed.
 
 **Visibility**
 - The homepage is just the child picker and a Parent Mode link - no activity

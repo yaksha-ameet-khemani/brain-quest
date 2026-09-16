@@ -348,3 +348,35 @@ building a parallel system.
   used" depending on whether wrong questions still exist; confirmed the
   dashboard card reflects the exhausted state accurately. Cleaned up
   afterward.
+
+**v10 update - daily/weekly streak recognition:** per user request, a kid
+now sees a "🔥 N day streak" / "🗓️ N week streak" badge on their dashboard
+when they've been playing consistently - pure recognition, no new points or
+mechanics attached to it.
+
+- `lib/streak.ts`'s `getStreaks()` computes both from the same source
+  everything else in the app already uses for "did they play" -
+  `rounds.status = 'completed'`, any `kind` (standard, bonus-level, or
+  review all count; the point is showing up, not which mode). Day
+  boundaries use the existing `lib/timezone.ts` `localDateKey()` helper, so
+  a streak lines up with the family's actual day rather than raw UTC.
+- A streak is "still alive" through today AND through a single skipped day
+  before it breaks - playing yesterday but not yet today doesn't zero out
+  the count, since today isn't over. The same logic applies one level up
+  for weekly (Sunday-start week buckets): played last week but not yet this
+  week still counts as an alive weekly streak, since this week isn't over
+  either. This was deliberately verified with a throwaway account (see
+  below), not just written and assumed correct, since it's an easy place to
+  off-by-one.
+- Also surfaced to admin: `getChildActivitySummary()` now includes each
+  child's current daily/weekly streak alongside the existing
+  attempted/correct/time stats, shown as `🔥 Nd` / `🗓️ Nw` in the "Family
+  activity" admin section - a natural fit since that's already the
+  per-child-at-a-glance view.
+- Verified against the real database with a throwaway child: four
+  backdated completed rounds on four consecutive days correctly showed
+  "🔥 4 day streak · 🗓️ 1 week streak" on the dashboard; replacing that
+  history with a single round from 5 days ago correctly dropped the daily
+  streak to 0 (no badge) while the weekly streak stayed at 1 - the last
+  week actually played is still within the "one skipped week is still
+  alive" window, not yet broken. Cleaned up afterward.

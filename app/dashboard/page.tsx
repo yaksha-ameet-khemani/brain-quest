@@ -5,6 +5,7 @@ import { queryOne } from "@/lib/db";
 import { getBalance } from "@/lib/balance";
 import { getLevelProgress } from "@/lib/levelProgress";
 import { getReviewProgress } from "@/lib/reviewProgress";
+import { getStreaks } from "@/lib/streak";
 import { LEVELS, MAX_ROUNDS_PER_DAY, type Level } from "@/lib/config";
 import type { ChildRow } from "@/lib/types";
 import KidLogoutButton from "@/components/KidLogoutButton";
@@ -28,6 +29,7 @@ export default async function DashboardPage() {
   const progress = await getLevelProgress(kid.childId, level);
   const baseRoundsLeft = Math.max(0, MAX_ROUNDS_PER_DAY - progress.baseRoundsToday);
   const reviewProgress = await getReviewProgress(kid.childId);
+  const streaks = await getStreaks(kid.childId);
 
   return (
     <main className="flex flex-col gap-8 pt-6">
@@ -48,6 +50,13 @@ export default async function DashboardPage() {
       <section className="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-100">
         <p className="text-sm font-medium text-slate-500">Your points</p>
         <p className="text-5xl font-extrabold text-brand-600">{balance}</p>
+        {(streaks.currentDailyStreak > 0 || streaks.currentWeeklyStreak > 0) && (
+          <p className="mt-2 text-sm font-semibold text-orange-600">
+            {streaks.currentDailyStreak > 0 && `🔥 ${streaks.currentDailyStreak} day streak`}
+            {streaks.currentDailyStreak > 0 && streaks.currentWeeklyStreak > 0 && " · "}
+            {streaks.currentWeeklyStreak > 0 && `🗓️ ${streaks.currentWeeklyStreak} week streak`}
+          </p>
+        )}
       </section>
 
       <section className="grid gap-4">

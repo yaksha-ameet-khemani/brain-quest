@@ -45,6 +45,8 @@ interface ActivitySummary {
   correct: number;
   wrong: number;
   totalTimeSeconds: number;
+  currentDailyStreak: number;
+  currentWeeklyStreak: number;
 }
 
 export default function ParentDashboard({
@@ -365,6 +367,8 @@ export default function ParentDashboard({
                   {a.correct}/{a.totalAttempted} correct
                   {" · "}
                   {Math.round(a.totalTimeSeconds / 60)} min played
+                  {a.currentDailyStreak > 0 && <> · 🔥 {a.currentDailyStreak}d</>}
+                  {a.currentWeeklyStreak > 0 && <> · 🗓️ {a.currentWeeklyStreak}w</>}
                 </span>
               </div>
             ))}
