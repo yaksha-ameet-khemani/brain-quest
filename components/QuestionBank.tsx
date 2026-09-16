@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useAutoRefresh } from "@/components/AutoRefresh";
 
 interface BankQuestion {
   id: string;
@@ -27,6 +28,7 @@ const BLANK_FORM = {
 };
 
 export default function QuestionBank() {
+  useAutoRefresh();
   const [questions, setQuestions] = useState<BankQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [levelFilter, setLevelFilter] = useState<"all" | "1" | "2">("all");

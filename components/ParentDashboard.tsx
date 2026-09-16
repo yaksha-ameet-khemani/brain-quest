@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import Avatar from "@/components/Avatar";
 import { fileToResizedDataUrl, ImageTooLargeError } from "@/lib/imageResize";
+import { useAutoRefresh } from "@/components/AutoRefresh";
 
 interface CategoryStat {
   category: string;
@@ -41,6 +42,7 @@ export default function ParentDashboard({
   parentEmail: string;
   role: "admin" | "parent";
 }) {
+  useAutoRefresh();
   const router = useRouter();
   const [overview, setOverview] = useState<ChildOverview[]>([]);
   const [redemptions, setRedemptions] = useState<Redemption[]>([]);

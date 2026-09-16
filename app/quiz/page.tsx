@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useAutoRefresh } from "@/components/AutoRefresh";
 
 interface Question {
   position: number;
@@ -42,6 +43,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 };
 
 export default function QuizPage() {
+  useAutoRefresh();
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<string | null>(null);
   const [round, setRound] = useState<RoundStart | null>(null);

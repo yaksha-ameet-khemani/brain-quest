@@ -8,6 +8,7 @@ import { todayRangeUtc } from "@/lib/timezone";
 import type { ChildRow } from "@/lib/types";
 import KidLogoutButton from "@/components/KidLogoutButton";
 import Avatar from "@/components/Avatar";
+import AutoRefresh from "@/components/AutoRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export default async function DashboardPage() {
 
   return (
     <main className="flex flex-col gap-8 pt-6">
+      <AutoRefresh />
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="flex h-14 w-14 items-center justify-center text-4xl">

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import AutoRefresh from "@/components/AutoRefresh";
 
 interface Reward {
   id: string;
@@ -70,6 +71,7 @@ export default function RewardsPage() {
 
   return (
     <main className="flex flex-col gap-6 pt-6">
+      <AutoRefresh />
       <header className="flex items-center justify-between">
         <Link href="/dashboard" className="text-sm text-slate-500">
           ← Back

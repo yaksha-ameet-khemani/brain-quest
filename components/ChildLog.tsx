@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { formatDuration } from "@/lib/format";
 import Avatar from "@/components/Avatar";
 import { fileToResizedDataUrl, ImageTooLargeError } from "@/lib/imageResize";
+import { useAutoRefresh } from "@/components/AutoRefresh";
 
 interface LogEntry {
   roundId: string;
@@ -232,6 +233,7 @@ function ResetActivityButton({ childId, onDone }: { childId: string; onDone: () 
 }
 
 export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmin: boolean }) {
+  useAutoRefresh();
   const [child, setChild] = useState<ChildInfo | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);

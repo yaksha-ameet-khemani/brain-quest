@@ -4,6 +4,7 @@ import type { ChildRow } from "@/lib/types";
 import { getPublicActivity } from "@/lib/publicActivity";
 import { formatDuration, formatRelativeTime } from "@/lib/format";
 import Avatar from "@/components/Avatar";
+import AutoRefresh from "@/components/AutoRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ export default async function HomePage() {
 
   return (
     <main className="flex flex-col gap-8 pt-8">
+      <AutoRefresh />
       <header className="text-center">
         <h1 className="text-4xl font-bold tracking-tight text-brand-700">🧠 Brain Quest</h1>
         <p className="mt-2 text-slate-600">Who&apos;s playing today?</p>
