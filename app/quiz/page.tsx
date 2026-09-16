@@ -53,10 +53,21 @@ export default function QuizPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const submittedRef = useRef(false);
 
-  const startTimer = useCallback((shownAt: string, limitSeconds: number) => {
+  // Deliberately does NOT compare the client's clock to the server's
+  // `shownAt` timestamp - if a device's clock is off (common enough on
+  // phones/tablets), Date.now() - shownAt can already be "expired" on the
+  // very first tick, instantly auto-submitting every question as a timeout
+  // before the kid ever sees it. Counting down from the moment *this
+  // client* started watching sidesteps clock skew entirely. The real
+  // timeout enforcement lives server-side anyway (both timestamps compared
+  // there come from the same server clock), so this is purely the visual
+  // countdown - a little generous under network delay is fine; a little
+  // short (the old bug) is not.
+  const startTimer = useCallback((limitSeconds: number) => {
     if (timerRef.current) clearInterval(timerRef.current);
+    const localStart = Date.now();
     const tick = () => {
-      const elapsed = (Date.now() - new Date(shownAt).getTime()) / 1000;
+      const elapsed = (Date.now() - localStart) / 1000;
       setSecondsLeft(Math.max(0, Math.ceil(limitSeconds - elapsed)));
     };
     tick();
@@ -77,7 +88,7 @@ export default function QuizPage() {
         setRound(start);
         setQuestion(start.question);
         setPhase("question");
-        startTimer(start.question.shownAt, start.timeLimitSeconds);
+        startTimer(start.timeLimitSeconds);
       } catch {
         setError("Network error starting the round.");
         setPhase("error");
@@ -146,7 +157,7 @@ export default function QuizPage() {
       }
       setQuestion(data.question);
       setPhase("question");
-      startTimer(data.question.shownAt, round.timeLimitSeconds);
+      startTimer(round.timeLimitSeconds);
     } catch {
       setError("Network error loading the next question.");
       setPhase("error");
