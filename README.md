@@ -61,6 +61,10 @@ Open http://localhost:3000.
 - A child who finishes all of a day's rounds with better than 75% accuracy
   unlocks 3 bonus rounds at the next level up, for that day - a repeatable
   daily stretch-goal, not a permanent level change.
+- A child can replay questions they most recently got wrong in a one-a-day
+  "review round" - pure practice, never scored and never counted against
+  the daily round limit. Getting one right on review retires it; getting it
+  wrong again keeps it coming back.
 
 **Visibility**
 - The homepage is just the child picker and a Parent Mode link - no activity

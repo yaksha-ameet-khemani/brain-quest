@@ -4,6 +4,7 @@ import { requireKid } from "@/lib/requireKid";
 import { queryOne } from "@/lib/db";
 import { getBalance } from "@/lib/balance";
 import { getLevelProgress } from "@/lib/levelProgress";
+import { getReviewProgress } from "@/lib/reviewProgress";
 import { LEVELS, MAX_ROUNDS_PER_DAY, type Level } from "@/lib/config";
 import type { ChildRow } from "@/lib/types";
 import KidLogoutButton from "@/components/KidLogoutButton";
@@ -26,6 +27,7 @@ export default async function DashboardPage() {
   const level = child.level as Level;
   const progress = await getLevelProgress(kid.childId, level);
   const baseRoundsLeft = Math.max(0, MAX_ROUNDS_PER_DAY - progress.baseRoundsToday);
+  const reviewProgress = await getReviewProgress(kid.childId);
 
   return (
     <main className="flex flex-col gap-8 pt-6">
@@ -65,6 +67,8 @@ export default async function DashboardPage() {
         {progress.bonusLevel && (
           <BonusRoundCard progress={progress} bonusLevel={progress.bonusLevel} />
         )}
+
+        {reviewProgress.wrongQuestionCount > 0 && <ReviewRoundCard progress={reviewProgress} />}
 
         <Link
           href="/rewards"
@@ -113,6 +117,27 @@ function BonusRoundCard({
         {progress.baseRoundsToday}/{progress.baseRoundsRequired} rounds done
         {accuracyPct !== null && ` · ${accuracyPct}% correct so far`}
       </span>
+    </div>
+  );
+}
+
+function ReviewRoundCard({ progress }: { progress: Awaited<ReturnType<typeof getReviewProgress>> }) {
+  if (progress.reviewAvailableToday) {
+    return (
+      <Link
+        href="/quiz?mode=review"
+        className="rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-500 p-6 text-center text-lg font-bold text-white shadow-sm active:opacity-90"
+      >
+        🔁 Review {progress.wrongQuestionCount} tricky question{progress.wrongQuestionCount === 1 ? "" : "s"}{" "}
+        (no points, just practice)
+      </Link>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl bg-sky-50 p-4 text-center text-sm font-medium text-sky-700 ring-1 ring-sky-200">
+      🔁 You&apos;ve used today&apos;s review round - come back tomorrow to try those {progress.wrongQuestionCount}{" "}
+      again.
     </div>
   );
 }

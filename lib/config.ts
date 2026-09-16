@@ -37,6 +37,14 @@ export const MAX_ROUNDS_PER_DAY = 3;
 export const LEVEL_UNLOCK_ACCURACY_THRESHOLD = 0.75;
 export const BONUS_ROUNDS_PER_DAY = 3;
 
+// A review round replays bank questions whose most recent attempt (of any
+// kind) was wrong, for practice only - never scored, never counted toward
+// MAX_ROUNDS_PER_DAY. Capped at one a day so it stays a focused top-up, not
+// a way to grind past the daily round limit, and at a handful of questions
+// so it never turns into a full extra round in disguise.
+export const REVIEW_ROUNDS_PER_DAY = 1;
+export const MAX_REVIEW_QUESTIONS = 5;
+
 // Points are deliberately close across levels: a harder question should feel
 // harder, not pay a wildly different daily wage. See docs/blueprint.md
 // "Point Economics" for the math behind these numbers.

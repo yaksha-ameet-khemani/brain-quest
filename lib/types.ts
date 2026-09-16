@@ -51,6 +51,7 @@ export interface RoundRow {
   id: string;
   child_id: string;
   level: 1 | 2;
+  kind: "standard" | "review";
   status: "in_progress" | "completed" | "abandoned";
   correct_count: number;
   points_awarded: number;

@@ -16,6 +16,7 @@ interface Question {
 interface RoundStart {
   roundId: string;
   level: 1 | 2;
+  kind: "standard" | "review";
   totalQuestions: number;
   timeLimitSeconds: number;
   question: Question;
@@ -55,6 +56,7 @@ function QuizPageInner() {
   useAutoRefresh();
   const searchParams = useSearchParams();
   const requestedLevel = searchParams.get("level");
+  const reviewMode = searchParams.get("mode") === "review";
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<string | null>(null);
   const [round, setRound] = useState<RoundStart | null>(null);
@@ -93,7 +95,9 @@ function QuizPageInner() {
         const res = await fetch("/api/round/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestedLevel ? { level: Number(requestedLevel) } : {}),
+          body: JSON.stringify(
+            reviewMode ? { mode: "review" } : requestedLevel ? { level: Number(requestedLevel) } : {}
+          ),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -114,7 +118,7 @@ function QuizPageInner() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [startTimer, requestedLevel]);
+  }, [startTimer, requestedLevel, reviewMode]);
 
   // Auto-submit as a miss once the timer hits zero, so a kid who freezes up
   // still sees the explanation instead of being stuck.
@@ -204,6 +208,9 @@ function QuizPageInner() {
         <p className="text-slate-600">
           {result.correctCount} / {round?.totalQuestions} correct
         </p>
+        {round?.kind === "review" && (
+          <p className="text-sm text-slate-500">Review round - practice only, no points awarded.</p>
+        )}
         {result.perfectBonus > 0 && (
           <p className="font-semibold text-amber-600">+{result.perfectBonus} perfect round bonus! 🏆</p>
         )}
@@ -235,7 +242,7 @@ function QuizPageInner() {
           <p className="mt-2 text-lg font-bold">
             {result.isCorrect ? "Correct!" : result.timedOut ? "Time's up!" : "Not quite"}
           </p>
-          {result.isCorrect && (
+          {result.isCorrect && round.kind !== "review" && (
             <p className="mt-1 font-semibold text-brand-600">
               +{result.pointsAwarded} points{result.streak >= 3 ? " 🔥 streak bonus!" : ""}
             </p>
@@ -258,6 +265,12 @@ function QuizPageInner() {
   return (
     <main className="flex flex-col gap-6 pt-8">
       <ProgressHeader position={question.position} total={round.totalQuestions} />
+
+      {round.kind === "review" && (
+        <p className="rounded-xl bg-sky-50 px-3 py-2 text-center text-sm font-medium text-sky-700 ring-1 ring-sky-200">
+          🔁 Review round - practice only, no points this time
+        </p>
+      )}
 
       <div className="flex items-center justify-between">
         <span className="rounded-full bg-white px-3 py-1 text-sm font-medium text-slate-500 ring-1 ring-slate-100">

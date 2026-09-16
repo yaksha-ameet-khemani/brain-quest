@@ -6,7 +6,6 @@ import {
   LEVELS,
   PERFECT_ROUND_BONUS,
   POINTS_PER_CORRECT,
-  QUESTIONS_PER_ROUND,
   SPEED_BONUS_FRACTION_OF_TIME,
   SPEED_BONUS_POINTS,
   STREAK_MULTIPLIER,
@@ -36,9 +35,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ roundId
   }
 
   const round = await queryOne<
-    Pick<RoundRow, "id" | "child_id" | "level" | "status" | "correct_count" | "points_awarded">
+    Pick<RoundRow, "id" | "child_id" | "level" | "kind" | "status" | "correct_count" | "points_awarded">
   >(
-    "SELECT id, child_id, level, status, correct_count, points_awarded FROM rounds WHERE id = $1",
+    "SELECT id, child_id, level, kind, status, correct_count, points_awarded FROM rounds WHERE id = $1",
     [roundId]
   );
   if (!round || round.child_id !== kid.childId) {
@@ -65,12 +64,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ roundId
 
   const rawCorrect = selectedIndex === rq.correct_index;
   const isCorrect = rawCorrect && withinTime;
+  const isReview = round.kind === "review";
+
+  const totalQuestionsRow = await queryOne<{ count: string }>(
+    "SELECT count(*) FROM round_questions WHERE round_id = $1",
+    [roundId]
+  );
+  const totalQuestions = Number(totalQuestionsRow?.count ?? position + 1);
 
   // Current streak: consecutive correct answers ending at this one, looking
-  // back over already-answered questions in this round.
+  // back over already-answered questions in this round. Review rounds are
+  // practice only - never scored, so skip all of this (see lib/config.ts).
   let pointsAwarded = 0;
   let streak = 0;
-  if (isCorrect) {
+  if (isCorrect && !isReview) {
     const priorAnswers = await query<Pick<RoundQuestionRow, "position" | "is_correct">>(
       "SELECT position, is_correct FROM round_questions WHERE round_id = $1 AND position < $2 ORDER BY position DESC",
       [roundId, position]
@@ -92,9 +99,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ roundId
   const answeredAt = new Date().toISOString();
   const newCorrectCount = round.correct_count + (isCorrect ? 1 : 0);
   const newPointsAwarded = round.points_awarded + pointsAwarded;
-  const isLastQuestion = position === QUESTIONS_PER_ROUND - 1;
+  const isLastQuestion = position === totalQuestions - 1;
   const roundComplete = isLastQuestion;
-  const perfectBonus = isLastQuestion && newCorrectCount === QUESTIONS_PER_ROUND ? PERFECT_ROUND_BONUS[level] : 0;
+  const perfectBonus =
+    !isReview && isLastQuestion && newCorrectCount === totalQuestions ? PERFECT_ROUND_BONUS[level] : 0;
 
   await withTransaction(async (tx) => {
     await tx.query(

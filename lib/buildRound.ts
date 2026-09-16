@@ -2,7 +2,7 @@ import "server-only";
 import { query } from "@/lib/db";
 import { generateMathQuestions } from "@/lib/mathQuestions";
 import { getCategoryWeights, pickWeightedCategories } from "@/lib/categoryWeights";
-import { BANK_CATEGORIES, QUESTIONS_PER_ROUND, type BankCategory, type Level } from "@/lib/config";
+import { BANK_CATEGORIES, MAX_REVIEW_QUESTIONS, QUESTIONS_PER_ROUND, type BankCategory, type Level } from "@/lib/config";
 import type { QuestionRow } from "@/lib/types";
 
 export interface RoundQuestionDraft {
@@ -30,7 +30,7 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
 }
 
-function toDraft(q: QuestionRow): RoundQuestionDraft {
+export function toDraft(q: QuestionRow): RoundQuestionDraft {
   const { options, correctIndex } = shuffleWithCorrectTracking(q.options, q.correct_option_index);
   return {
     source: "bank",
@@ -129,4 +129,37 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
   }
 
   return drafts;
+}
+
+/** Picks up to MAX_REVIEW_QUESTIONS bank questions whose most recent attempt
+ * by this child was wrong, most-recently-missed first - for a "review round"
+ * that's never scored (see lib/config.ts). Only bank questions qualify:
+ * generated math is different numbers every time, so there's no fixed
+ * question to "get right this time." A question the child answers correctly
+ * on review naturally drops off next time, since this always looks at the
+ * MOST RECENT attempt, not just the first mistake - free spaced repetition,
+ * not additional bookkeeping. Returns an empty array if there's nothing to
+ * review right now (caller should treat that as "review not available").
+ */
+export async function buildReviewQuestions(childId: string): Promise<RoundQuestionDraft[]> {
+  const rows = await query<QuestionRow>(
+    `SELECT q.id, q.category, q.question_text, q.options, q.correct_option_index, q.explanation
+     FROM (
+       SELECT DISTINCT ON (rq.question_id) rq.question_id, rq.is_correct, rq.answered_at
+       FROM round_questions rq
+       JOIN rounds r ON r.id = rq.round_id
+       WHERE r.child_id = $1
+         AND rq.source = 'bank'
+         AND rq.question_id IS NOT NULL
+         AND rq.answered_at IS NOT NULL
+       ORDER BY rq.question_id, rq.answered_at DESC
+     ) latest
+     JOIN questions q ON q.id = latest.question_id
+     WHERE latest.is_correct = false AND q.is_active = true
+     ORDER BY latest.answered_at DESC
+     LIMIT $2`,
+    [childId, MAX_REVIEW_QUESTIONS]
+  );
+
+  return rows.map(toDraft);
 }

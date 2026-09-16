@@ -293,3 +293,58 @@ thing in practice - noted here for the record, not relitigated.
   and the underlying aggregate query itself was independently re-run
   against production and confirmed to return the correct, current numbers
   for all four real child profiles.
+
+**v9 update - wrong-answer review rounds:** per user request, a child can
+now replay questions they most recently got wrong, purely for practice -
+never for points, never counted against the daily round limit. This is the
+single biggest learning lever that v1 deliberately deferred (see the very
+first entry in this file's "possible additions" list); it reuses the
+existing round/round_questions machinery almost entirely rather than
+building a parallel system.
+
+- `rounds.kind` (migration `006_review_rounds.sql`) is `'standard'` or
+  `'review'` - the only new column needed. Everything else (round_questions,
+  answer grading, resume-in-progress logic) is the same table shape as
+  before.
+- "Wrong" means: this bank question's *most recent* attempt by this child
+  (standard or review, doesn't matter) came back incorrect -
+  `lib/buildRound.ts`'s `buildReviewQuestions()` and the count-only
+  `lib/reviewProgress.ts`'s `getReviewProgress()` share this definition via
+  the same `DISTINCT ON (question_id) ... ORDER BY answered_at DESC` query
+  shape. Only bank questions (logic/riddle/spatial) qualify, not generated
+  math - a fresh math problem next time has different numbers, so there's
+  no fixed question to "get right this time." A side effect worth calling
+  out because it wasn't deliberately engineered: since this always looks at
+  the *latest* attempt, getting a review question right makes it stop
+  showing up next time and getting it wrong again keeps it in rotation -
+  free spaced repetition, for no extra bookkeeping.
+- A review round's length is however many wrong questions exist, capped at
+  `MAX_REVIEW_QUESTIONS` (5) - not the fixed `QUESTIONS_PER_ROUND` a
+  standard round always has. This forced a real fix, not just new code: the
+  answer route previously decided "is this the last question" via
+  `position === QUESTIONS_PER_ROUND - 1`, a hardcoded assumption that would
+  have been silently wrong for any round shorter than 5. It now counts the
+  round's actual `round_questions` rows instead - correct for both standard
+  and review rounds, and no longer coupled to a global constant that
+  happened to match by coincidence before.
+- Capped at `REVIEW_ROUNDS_PER_DAY` (1) so it stays a focused top-up, not a
+  way to grind past the daily round limit; `POST /api/round/start` takes
+  `{ mode: "review" }` instead of `{ level }`, and refuses with a clear
+  reason (nothing to review vs. today's review already used) if it can't
+  build one.
+- No points, ever, for a review round - `points_awarded`, streak bonus,
+  speed bonus, and perfect-round bonus are all skipped server-side when
+  `round.kind === 'review'`, regardless of what the client sends. The kid
+  dashboard's new "🔁 Review N tricky questions (no points, just practice)"
+  card and the quiz page's review banner set that expectation up front so
+  it's never a surprise mid-round.
+- Verified end-to-end against the real database with a throwaway child:
+  played a standard round answering everything wrong, confirmed a review
+  round surfaced exactly the one bank (non-math) question missed with a
+  dynamic `totalQuestions: 1`; answered it correctly and confirmed
+  `pointsAwarded: 0` and an unchanged balance; confirmed a second review
+  attempt the same day is refused, with the error message correctly
+  distinguishing "nothing left to review" from "today's review already
+  used" depending on whether wrong questions still exist; confirmed the
+  dashboard card reflects the exhausted state accurately. Cleaned up
+  afterward.

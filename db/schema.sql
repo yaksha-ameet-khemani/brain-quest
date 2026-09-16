@@ -17,8 +17,9 @@
 -- public sign-up closes forever after that - every other parent account is
 -- created BY the admin (see app/api/admin/parents). There can only ever be
 -- one admin row (enforced below by a partial unique index) and the app
--- refuses to ever delete it. All parents (admin included) share the same
--- pool of children - there is no per-parent ownership split.
+-- refuses to ever delete it. Each child has a real owning parent
+-- (`children.parent_id`) - a parent only sees/manages their own children;
+-- admin sees and manages everyone's.
 
 create extension if not exists pgcrypto;
 
@@ -107,6 +108,7 @@ create table rounds (
   id uuid primary key default gen_random_uuid(),
   child_id uuid not null references children (id) on delete cascade,
   level smallint not null check (level in (1, 2)),
+  kind text not null default 'standard' check (kind in ('standard', 'review')), -- 'review' = replaying past wrong answers for practice, never for points
   status text not null default 'in_progress' check (status in ('in_progress', 'completed', 'abandoned')),
   correct_count smallint not null default 0,
   points_awarded int not null default 0,
