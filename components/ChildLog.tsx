@@ -110,22 +110,86 @@ function CategoryWeightsEditor({ childId }: { childId: string }) {
   );
 }
 
+function ResetActivityButton({ childId, onDone }: { childId: string; onDone: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function doReset() {
+    setResetting(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/children/${childId}/reset-activity`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error ?? "Could not reset.");
+        return;
+      }
+      setConfirming(false);
+      setMessage("Activity reset - profile, name, avatar, and PIN are unchanged.");
+      onDone();
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  return (
+    <section className="rounded-2xl bg-rose-50 p-4 ring-1 ring-rose-200">
+      <h2 className="font-bold text-rose-700">⚠️ Reset activity</h2>
+      <p className="mt-1 text-xs text-rose-700/80">
+        Wipes this child&apos;s rounds, points, redemption requests, and login history - for
+        starting a fresh test. The profile itself (name, avatar, level, PIN) is not touched.
+        This cannot be undone.
+      </p>
+      {!confirming ? (
+        <button
+          onClick={() => setConfirming(true)}
+          className="mt-3 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white"
+        >
+          Reset activity
+        </button>
+      ) : (
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            onClick={doReset}
+            disabled={resetting}
+            className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {resetting ? "…" : "Yes, reset everything"}
+          </button>
+          <button
+            onClick={() => setConfirming(false)}
+            disabled={resetting}
+            className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+      {message && <p className="mt-2 text-sm text-rose-700">{message}</p>}
+    </section>
+  );
+}
+
 export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmin: boolean }) {
   const [child, setChild] = useState<ChildInfo | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "correct" | "wrong">("all");
 
+  async function refreshLog() {
+    const res = await fetch(`/api/parent/children/${childId}/log`);
+    if (res.ok) {
+      const data = await res.json();
+      setChild(data.child);
+      setLog(data.log);
+    }
+    setLoading(false);
+  }
+
   useEffect(() => {
-    (async () => {
-      const res = await fetch(`/api/parent/children/${childId}/log`);
-      if (res.ok) {
-        const data = await res.json();
-        setChild(data.child);
-        setLog(data.log);
-      }
-      setLoading(false);
-    })();
+    refreshLog();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId]);
 
   const filtered = log.filter((l) => {
@@ -161,6 +225,7 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
       </header>
 
       {isAdmin && <CategoryWeightsEditor childId={childId} />}
+      {isAdmin && <ResetActivityButton childId={childId} onDone={refreshLog} />}
 
       <section className="grid grid-cols-4 gap-2 text-center text-xs">
         <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
