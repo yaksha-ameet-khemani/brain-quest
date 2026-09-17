@@ -57,7 +57,10 @@ Open http://localhost:3000.
   hand-verified bank (180 questions - 20 per level per category, across all
   3 levels) that admin manages from an in-app **Question Bank** page,
   including each question's live "proficiency" (attempts/correct/success
-  rate).
+  rate). The reward catalog gets the same admin-managed treatment from a
+  **Rewards Catalog** page - add/edit/archive rewards, with a live
+  "times redeemed" count per reward; archiving hides it from what kids can
+  redeem without touching anyone's past redemption history.
 - Admin can set a per-child, per-category priority weight (e.g. give a kid
   more logic practice if that's their weak spot), which steers what shows
   up in that child's rounds.

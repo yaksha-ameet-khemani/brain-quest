@@ -248,6 +248,11 @@ export default function ParentDashboard({
               📚 Question Bank
             </Link>
           )}
+          {role === "admin" && (
+            <Link href="/parent/rewards" className="whitespace-nowrap text-sm font-semibold text-brand-600 underline">
+              🎁 Rewards Catalog
+            </Link>
+          )}
           <button onClick={signOut} className="whitespace-nowrap text-sm text-slate-500 underline">
             Sign out
           </button>

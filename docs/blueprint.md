@@ -677,3 +677,37 @@ enough to answer this.
   to compare against yet) rather than a misleading 0%, and confirmed the
   auth guard 401s with no session and 404s for a child id that doesn't
   belong to the caller.
+
+**v17 update - admin reward catalog management:** per user request, admin
+gets a **Rewards Catalog** page to add/edit/archive rewards, matching the
+Question Bank page's shape exactly (`app/api/admin/rewards` +
+`[id]/route.ts`, `components/RewardCatalog.tsx`, linked from the dashboard
+header next to "📚 Question Bank"). `rewards.active` already existed in the
+schema from v1 but nothing ever set it to `false` or read it selectively
+until now.
+
+- Scoped to **admin-only** (`requireAdmin()`), not "any signed-in parent."
+  This tightens an existing gap rather than preserving it: the old
+  `POST /api/rewards` this replaces was gated by `requireParent()` (any
+  parent), but nothing in the app ever actually called it, and every other
+  "manage shared content" feature this session (Question Bank, the backup
+  button) is admin-only - so the same rule now applies here instead of
+  leaving an inconsistent, unused, more-permissive route in place. The
+  kid-facing `GET /api/rewards` (the catalog itself) is untouched and still
+  needs no session at all.
+- No hard DELETE, same reasoning as the question bank's `is_active`:
+  `redemptions.reward_id` references a reward with no `ON DELETE` (defaults
+  to RESTRICT), and a redemption already snapshots the reward's
+  `name`/`cost` at request time regardless - so "remove from the catalog"
+  is `active = false`, never an actual row deletion. `GET
+  /api/admin/rewards` additionally shows a live "times redeemed" count per
+  reward (a simple `LEFT JOIN` against `redemptions`), the reward-catalog
+  equivalent of the question bank's per-question proficiency stat.
+- Verified against the real database: created a throwaway reward through
+  the real API, confirmed it appeared in the kid-facing catalog while
+  active, edited its name/cost, archived it and confirmed it disappeared
+  from the kid-facing catalog immediately, confirmed a negative/non-integer
+  cost is rejected, confirmed a non-admin parent gets the same 401 an
+  unauthenticated request would, then deleted the throwaway row directly
+  (real hard delete, safe only because it had zero redemptions - exactly
+  the case the app itself never allows through the API).
