@@ -61,6 +61,15 @@ export const MAX_REVIEW_QUESTIONS = 5;
 // understanding, it IS scored normally (not free practice like review).
 export const MAX_CHECKUP_QUESTIONS = 5;
 
+// Per-child report tunables (lib/childReport.ts) - how far back each section
+// looks, and how many attempts something needs before it's called a
+// strength/weakness/trend at all, so one lucky or unlucky guess never skews
+// the read.
+export const MIN_ATTEMPTS_FOR_WEAK_SPOT = 4;
+export const REPORT_CATEGORY_WINDOW_DAYS = 30;
+export const REPORT_TREND_WINDOW_DAYS = 14;
+export const REPORT_LEVEL_READINESS_WINDOW_DAYS = 7;
+
 // Points are deliberately close across levels: a harder question should feel
 // harder, not pay a wildly different daily wage. See docs/blueprint.md
 // "Point Economics" for the math behind these numbers.

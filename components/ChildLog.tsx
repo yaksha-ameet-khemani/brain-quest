@@ -7,6 +7,7 @@ import { formatDuration } from "@/lib/format";
 import Avatar from "@/components/Avatar";
 import { fileToResizedDataUrl, ImageTooLargeError } from "@/lib/imageResize";
 import { useAutoRefresh } from "@/components/AutoRefresh";
+import ChildReport from "@/components/ChildReport";
 
 interface LogEntry {
   roundId: string;
@@ -239,6 +240,7 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
   const [log, setLog] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "correct" | "wrong">("all");
+  const [tab, setTab] = useState<"report" | "log">("report");
 
   async function refreshLog() {
     const res = await fetch(`/api/parent/children/${childId}/log`);
@@ -284,7 +286,7 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
           <Avatar photoDataUrl={child.photoDataUrl} avatar={child.avatar} name={child.name} />
         </span>
         <div>
-          <h1 className="text-xl font-bold">{child.name}&apos;s full log</h1>
+          <h1 className="text-xl font-bold">{child.name}</h1>
           <p className="text-sm text-slate-500">Level {child.level}</p>
           <div className="mt-1">
             <ChildPhotoEditor child={child} onChanged={refreshLog} />
@@ -295,79 +297,99 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
       {isAdmin && <CategoryWeightsEditor childId={childId} />}
       {isAdmin && <ResetActivityButton childId={childId} onDone={refreshLog} />}
 
-      <section className="grid grid-cols-4 gap-2 text-center text-xs">
-        <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
-          <p className="text-lg font-bold">{log.length}</p>
-          <p className="text-slate-500">Attempted</p>
-        </div>
-        <div className="rounded-xl bg-emerald-50 p-3">
-          <p className="text-lg font-bold text-emerald-600">{correctCount}</p>
-          <p className="text-slate-500">Correct</p>
-        </div>
-        <div className="rounded-xl bg-rose-50 p-3">
-          <p className="text-lg font-bold text-rose-500">{wrongCount}</p>
-          <p className="text-slate-500">Wrong</p>
-        </div>
-        <div className="rounded-xl bg-brand-50 p-3">
-          <p className="text-lg font-bold text-brand-600">{formatDuration(totalTime)}</p>
-          <p className="text-slate-500">Total time</p>
-        </div>
-      </section>
-
       <div className="flex gap-2">
-        {(["all", "correct", "wrong"] as const).map((f) => (
+        {(["report", "log"] as const).map((t) => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold capitalize ${
-              filter === f ? "bg-brand-500 text-white" : "bg-white text-slate-500 ring-1 ring-slate-200"
+            key={t}
+            onClick={() => setTab(t)}
+            className={`rounded-full px-4 py-1.5 text-xs font-semibold ${
+              tab === t ? "bg-brand-500 text-white" : "bg-white text-slate-500 ring-1 ring-slate-200"
             }`}
           >
-            {f}
+            {t === "report" ? "📊 Report" : "📋 Full log"}
           </button>
         ))}
       </div>
 
-      <section className="grid gap-3">
-        {filtered.map((l, i) => (
-          <div
-            key={`${l.roundId}-${l.position}-${i}`}
-            className={`rounded-2xl p-4 shadow-sm ring-1 ${
-              l.isCorrect ? "bg-emerald-50 ring-emerald-100" : "bg-rose-50 ring-rose-100"
-            }`}
-          >
-            <div className="flex items-center justify-between text-xs text-slate-500">
-              <span className="capitalize">{l.category}</span>
-              <span>
-                {l.answeredAt ? new Date(l.answeredAt).toLocaleString() : "—"} ·{" "}
-                {l.durationSeconds !== null ? formatDuration(l.durationSeconds) : "—"}
-              </span>
+      {tab === "report" ? (
+        <ChildReport childId={childId} />
+      ) : (
+        <>
+          <section className="grid grid-cols-4 gap-2 text-center text-xs">
+            <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
+              <p className="text-lg font-bold">{log.length}</p>
+              <p className="text-slate-500">Attempted</p>
             </div>
-            <p className="mt-1 font-medium">{l.questionText}</p>
-            <div className="mt-2 grid gap-1 text-sm">
-              {l.options.map((opt, idx) => (
-                <p
-                  key={idx}
-                  className={
-                    idx === l.correctIndex
-                      ? "font-semibold text-emerald-700"
-                      : idx === l.selectedIndex
-                        ? "font-semibold text-rose-600 line-through"
-                        : "text-slate-500"
-                  }
-                >
-                  {idx === l.correctIndex ? "✓ " : idx === l.selectedIndex ? "✗ " : "• "}
-                  {opt}
-                </p>
-              ))}
+            <div className="rounded-xl bg-emerald-50 p-3">
+              <p className="text-lg font-bold text-emerald-600">{correctCount}</p>
+              <p className="text-slate-500">Correct</p>
             </div>
-            <p className="mt-2 text-xs text-slate-400">
-              {l.isCorrect ? `+${l.pointsAwarded} pts` : l.selectedIndex === null ? "Timed out" : "Incorrect"}
-            </p>
+            <div className="rounded-xl bg-rose-50 p-3">
+              <p className="text-lg font-bold text-rose-500">{wrongCount}</p>
+              <p className="text-slate-500">Wrong</p>
+            </div>
+            <div className="rounded-xl bg-brand-50 p-3">
+              <p className="text-lg font-bold text-brand-600">{formatDuration(totalTime)}</p>
+              <p className="text-slate-500">Total time</p>
+            </div>
+          </section>
+
+          <div className="flex gap-2">
+            {(["all", "correct", "wrong"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold capitalize ${
+                  filter === f ? "bg-brand-500 text-white" : "bg-white text-slate-500 ring-1 ring-slate-200"
+                }`}
+              >
+                {f}
+              </button>
+            ))}
           </div>
-        ))}
-        {filtered.length === 0 && <p className="text-center text-sm text-slate-500">No attempts yet.</p>}
-      </section>
+
+          <section className="grid gap-3">
+            {filtered.map((l, i) => (
+              <div
+                key={`${l.roundId}-${l.position}-${i}`}
+                className={`rounded-2xl p-4 shadow-sm ring-1 ${
+                  l.isCorrect ? "bg-emerald-50 ring-emerald-100" : "bg-rose-50 ring-rose-100"
+                }`}
+              >
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span className="capitalize">{l.category}</span>
+                  <span>
+                    {l.answeredAt ? new Date(l.answeredAt).toLocaleString() : "—"} ·{" "}
+                    {l.durationSeconds !== null ? formatDuration(l.durationSeconds) : "—"}
+                  </span>
+                </div>
+                <p className="mt-1 font-medium">{l.questionText}</p>
+                <div className="mt-2 grid gap-1 text-sm">
+                  {l.options.map((opt, idx) => (
+                    <p
+                      key={idx}
+                      className={
+                        idx === l.correctIndex
+                          ? "font-semibold text-emerald-700"
+                          : idx === l.selectedIndex
+                            ? "font-semibold text-rose-600 line-through"
+                            : "text-slate-500"
+                      }
+                    >
+                      {idx === l.correctIndex ? "✓ " : idx === l.selectedIndex ? "✗ " : "• "}
+                      {opt}
+                    </p>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-slate-400">
+                  {l.isCorrect ? `+${l.pointsAwarded} pts` : l.selectedIndex === null ? "Timed out" : "Incorrect"}
+                </p>
+              </div>
+            ))}
+            {filtered.length === 0 && <p className="text-center text-sm text-slate-500">No attempts yet.</p>}
+          </section>
+        </>
+      )}
     </main>
   );
 }

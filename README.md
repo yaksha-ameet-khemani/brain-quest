@@ -87,7 +87,11 @@ Open http://localhost:3000.
 - The homepage is just the child picker and a Parent Mode link - no activity
   data is shown there or anywhere without signing in.
 - A signed-in parent sees their own children's full detail: every question
-  ever asked, what was picked, right or wrong, and how long it took.
+  ever asked, what was picked, right or wrong, and how long it took, plus a
+  per-child **Report** tab - a plain-English summary of how they're doing,
+  strengths/weaknesses by category (last 30 days), a 14-vs-14-day trend,
+  specific concepts/math skills they're struggling with, and a nudge if
+  they look ready to move up a level.
 - Admin additionally sees a cross-child "Family activity" summary (last
   login, attempted/correct/wrong, time played) for every kid at once, plus
   an admin-only "reset activity" per child for testing, which never touches

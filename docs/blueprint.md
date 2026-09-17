@@ -619,3 +619,61 @@ assumed.
 - Restore is still deliberately not built (same as v11) - `decryptBackup.mjs`
   gets you back to readable JSON; loading that into a live database remains
   a "build it if the day actually comes" item.
+
+**v16 update - per-child report:** per user request, the parent dashboard's
+per-child page (`/parent/children/[childId]`) gains a **Report** tab
+alongside the existing raw question log - a plain-English "how is this kid
+doing" writeup instead of a wall of individual answers. No schema change:
+everything is derived from `round_questions`/`rounds`, which already record
+enough to answer this.
+
+- `lib/childReport.ts`'s `getChildReport()` is the one place all of it's
+  computed. Deliberately looks at more than a single lifetime accuracy
+  number:
+  - **Category breakdown** over the last `REPORT_CATEGORY_WINDOW_DAYS` (30)
+    days, not lifetime - a rough month from a while back shouldn't still be
+    dragging down what a parent sees as "current."
+  - **Trend**: last `REPORT_TREND_WINDOW_DAYS` (14) days vs. the 14 days
+    before that, per category and combined - "is this actually working,"
+    not just a snapshot.
+  - **Weak spots**: the same admin-set `concept` tags and math
+    `template_key`s the v14 checkup feature introduced, reused here for a
+    different purpose - not "what to recheck tomorrow" but "what to tell a
+    parent to work on with them." Only surfaces ones below 75% accuracy.
+  - **Level readiness**: how many of the last `REPORT_LEVEL_READINESS_WINDOW_DAYS`
+    (7) days a child actually played at their base level did they unlock
+    the bonus round (same rule `lib/levelProgress.ts` uses for "today"),
+    extended across a week - a nudge, not an automatic promotion; the
+    parent still changes the level themselves.
+  - A new `MIN_ATTEMPTS_FOR_WEAK_SPOT` (4) constant in `lib/config.ts`
+    gates every one of the above - a category, concept, or trend needs at
+    least that many attempts before it's allowed to be called a
+    strength/weakness/direction at all, so one lucky or unlucky guess can't
+    swing the read.
+  - The whole thing degrades gracefully rather than erroring: a child with
+    under 5 total answers gets `hasEnoughData: false` and a one-line "check
+    back later" instead of a report built on noise; no bank questions
+    tagged with a `concept` yet just means the weak-spots list leans on
+    math skills alone (or is empty) rather than failing.
+  - A short plain-English **summary** paragraph is generated from the same
+    numbers (strongest/weakest category, the specific weak spot behind the
+    weakest one if there is one, and the trend direction) - the one thing
+    meant to be read first, with everything else as the supporting detail
+    underneath it.
+- `app/api/parent/children/[childId]/report/route.ts` reuses the exact same
+  `ownedChild()` ownership check as the existing `.../log` route it sits
+  next to - a parent sees only their own children's report, admin sees
+  every child's.
+- `components/ChildReport.tsx` is a new component; `components/ChildLog.tsx`
+  gained a two-tab toggle ("📊 Report" / "📋 Full log") defaulting to
+  Report, since a summary is more useful at a glance than 300 raw rows -
+  the raw log is still one click away, unchanged.
+- Verified against the real database (read-only, no throwaway data needed
+  or cleaned up): pulled the report for an actual child with 35 answered
+  questions, confirmed the returned accuracy math matched a hand-computed
+  check against the raw rows (18/35 = 51%), confirmed the summary sentence
+  read naturally, confirmed `trend` correctly reported "insufficient-data"
+  for a child whose entire history is newer than the trend window (nothing
+  to compare against yet) rather than a misleading 0%, and confirmed the
+  auth guard 401s with no session and 404s for a child id that doesn't
+  belong to the caller.
