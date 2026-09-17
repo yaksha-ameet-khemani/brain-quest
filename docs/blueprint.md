@@ -711,3 +711,44 @@ until now.
   unauthenticated request would, then deleted the throwaway row directly
   (real hard delete, safe only because it had zero redemptions - exactly
   the case the app itself never allows through the API).
+
+**v18 update - question bank expansion to 630 questions:** per user
+request, every (level, category) bucket grows from 20 to 70 - 630 curated
+logic/riddle/spatial questions total (up from 180), math still generated
+rather than stored.
+
+- Content this size (450 new questions) was produced by three parallel
+  forked agents, one per level, each writing 50 logic + 50 riddle + 50
+  spatial questions for its level, calibrated against migration 004's
+  format/quality bar and the existing bank for that level (fed each fork
+  the real existing question_text/riddle-answer set to guarantee no
+  overlap). Delegating this way kept the ~450 questions' worth of raw
+  content out of the coordinating session's own context - only the
+  finished files and a short report came back - while still producing
+  content grounded in this repo's actual existing style rather than a
+  generic one, since each fork inherited full session context.
+- None of that was taken on faith. Every fork's output went through the
+  same independent verification regardless of what it self-reported: (1) a
+  structural dry-run of the actual SQL against the real database inside a
+  transaction that was rolled back - `jsonb_array_length(options) = 4`,
+  `correct_option_index` in range, no empty option strings, zero duplicate
+  `question_text` and zero duplicate riddle-answer text within any
+  (level, category) bucket, confirmed via real Postgres/JSON parsing
+  rather than a hand-rolled parser; (2) a full manual read-through of all
+  450 questions checking the actual reasoning - every logic puzzle's
+  arithmetic/deduction worked out by hand (rate problems, ratios, syllogisms,
+  age problems, ciphers, handshake/combinatorics counting), every spatial
+  fact checked (polygon side/vertex counts, 3D face/edge/vertex counts,
+  Pythagorean triples, angle sums, symmetry counts, compass rotations,
+  cube diagonal-plane counts) - zero errors found. One fork's own final
+  status message came back garbled/off-topic (looked like it had confused
+  itself with the coordinating task); its actual output file was
+  unaffected and passed every check just like the other two, which is
+  exactly why the file was independently re-verified rather than trusting
+  any fork's self-report at face value.
+- Same migration/seed split as v11 kept up here: `db/migrations/010_expand_question_bank_v2.sql`
+  (applied to the live database, verified via a dry-run in a rolled-back
+  transaction first, then applied for real and reconfirmed at 630 rows
+  across all 9 buckets) plus the identical content appended to `db/seed.sql`
+  for fresh installs, itself syntax-validated the same way before being
+  left in place.
