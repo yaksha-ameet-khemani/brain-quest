@@ -43,6 +43,7 @@ export async function GET() {
     options: r.options,
     correctOptionIndex: r.correct_option_index,
     explanation: r.explanation,
+    concept: r.concept,
     isActive: r.is_active,
     attempts: Number(r.attempts),
     correct: Number(r.correct),
@@ -64,6 +65,7 @@ export async function POST(req: Request) {
   const options: string[] | undefined = body?.options;
   const correctOptionIndex: number | undefined = body?.correctOptionIndex;
   const explanation: string | undefined = body?.explanation?.trim();
+  const concept: string | null = typeof body?.concept === "string" && body.concept.trim() ? body.concept.trim() : null;
 
   if (
     !isValidLevel(level) ||
@@ -85,10 +87,10 @@ export async function POST(req: Request) {
   }
 
   const question = await queryOne<QuestionRow>(
-    `INSERT INTO questions (level, category, question_text, options, correct_option_index, explanation)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO questions (level, category, question_text, options, correct_option_index, explanation, concept)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [level, category, questionText, JSON.stringify(options), correctOptionIndex, explanation]
+    [level, category, questionText, JSON.stringify(options), correctOptionIndex, explanation, concept]
   );
   if (!question) return NextResponse.json({ error: "Could not create question." }, { status: 500 });
   return NextResponse.json({ question }, { status: 201 });

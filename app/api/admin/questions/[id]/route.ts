@@ -48,6 +48,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     sets.push(`explanation = $${i++}`);
     values.push(body.explanation.trim());
   }
+  if ("concept" in (body ?? {})) {
+    sets.push(`concept = $${i++}`);
+    values.push(typeof body.concept === "string" && body.concept.trim() ? body.concept.trim() : null);
+  }
   if (typeof body?.isActive === "boolean") {
     sets.push(`is_active = $${i++}`);
     values.push(body.isActive);

@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { queryOne, withTransaction } from "@/lib/db";
 import { requireKid } from "@/lib/requireKid";
-import { buildRoundQuestions, buildReviewQuestions } from "@/lib/buildRound";
+import { buildRoundQuestions, buildReviewQuestions, buildCheckupQuestions } from "@/lib/buildRound";
 import { sanitizeQuestion } from "@/lib/sanitizeQuestion";
 import { todayRangeUtc } from "@/lib/timezone";
 import { getLevelProgress } from "@/lib/levelProgress";
 import { getReviewProgress } from "@/lib/reviewProgress";
+import { getCheckupProgress } from "@/lib/checkupProgress";
 import { BONUS_ROUNDS_PER_DAY, LEVELS, MAX_ROUNDS_PER_DAY, QUESTIONS_PER_ROUND, type Level } from "@/lib/config";
 import type { ChildRow, RoundQuestionRow, RoundRow } from "@/lib/types";
 
@@ -68,6 +69,18 @@ export async function POST(req: Request) {
     return createRound(kid.childId, baseLevel, "review", drafts);
   }
 
+  // Before any fresh standard round: if this child has recent wrong
+  // answers to recheck and hasn't done today's checkup yet, serve that
+  // instead - regardless of what level/mode was requested. See
+  // lib/checkupProgress.ts and lib/buildRound.ts's buildCheckupQuestions().
+  const checkupProgress = await getCheckupProgress(kid.childId);
+  if (checkupProgress.checkupAvailableToday) {
+    const checkupDrafts = await buildCheckupQuestions(kid.childId);
+    if (checkupDrafts.length > 0) {
+      return createRound(kid.childId, baseLevel, "checkup", checkupDrafts);
+    }
+  }
+
   // Which level to actually play: a kid's own base level by default, or -
   // if they've earned it today - the bonus level one up from that. See
   // lib/levelProgress.ts for the unlock rule.
@@ -109,7 +122,7 @@ export async function POST(req: Request) {
 async function createRound(
   childId: string,
   level: Level,
-  kind: "standard" | "review",
+  kind: "standard" | "review" | "checkup",
   drafts: Awaited<ReturnType<typeof buildRoundQuestions>>
 ) {
   const created = await withTransaction(async (tx) => {
@@ -125,14 +138,15 @@ async function createRound(
       const shownAt = position === 0 ? new Date().toISOString() : null;
       const inserted = await tx.query(
         `INSERT INTO round_questions
-           (round_id, position, source, question_id, category, question_text, options, correct_index, explanation, shown_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+           (round_id, position, source, question_id, template_key, category, question_text, options, correct_index, explanation, shown_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
          RETURNING category, question_text, options, shown_at`,
         [
           roundId,
           position,
           d.source,
           d.questionId,
+          d.templateKey,
           d.category,
           d.questionText,
           JSON.stringify(d.options),

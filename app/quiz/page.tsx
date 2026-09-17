@@ -20,7 +20,7 @@ interface Question {
 interface RoundStart {
   roundId: string;
   level: Level;
-  kind: "standard" | "review";
+  kind: "standard" | "review" | "checkup";
   totalQuestions: number;
   timeLimitSeconds: number;
   question: Question;
@@ -235,6 +235,11 @@ function QuizPageInner() {
         {round?.kind === "review" && (
           <p className="text-sm text-slate-500">Review round - practice only, no points awarded.</p>
         )}
+        {round?.kind === "checkup" && (
+          <p className="text-sm font-medium text-violet-600">
+            🧠 Checkup complete - nice work showing you&apos;ve really got it!
+          </p>
+        )}
         {result.perfectBonus > 0 && (
           <p className="font-semibold text-amber-600">+{result.perfectBonus} perfect round bonus! 🏆</p>
         )}
@@ -293,6 +298,12 @@ function QuizPageInner() {
       {round.kind === "review" && (
         <p className="rounded-xl bg-sky-50 px-3 py-2 text-center text-sm font-medium text-sky-700 ring-1 ring-sky-200">
           🔁 Review round - practice only, no points this time
+        </p>
+      )}
+
+      {round.kind === "checkup" && (
+        <p className="rounded-xl bg-violet-50 px-3 py-2 text-center text-sm font-medium text-violet-700 ring-1 ring-violet-200">
+          🧠 Quick checkup - similar to one you missed before. This one counts!
         </p>
       )}
 

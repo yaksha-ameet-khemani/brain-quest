@@ -45,6 +45,7 @@ export interface QuestionRow {
   options: string[];
   correct_option_index: number;
   explanation: string;
+  concept: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -53,7 +54,7 @@ export interface RoundRow {
   id: string;
   child_id: string;
   level: Level;
-  kind: "standard" | "review";
+  kind: "standard" | "review" | "checkup";
   status: "in_progress" | "completed" | "abandoned";
   correct_count: number;
   points_awarded: number;
@@ -67,6 +68,7 @@ export interface RoundQuestionRow {
   position: number;
   source: "bank" | "generated";
   question_id: string | null;
+  template_key: string | null;
   category: string;
   question_text: string;
   options: string[];

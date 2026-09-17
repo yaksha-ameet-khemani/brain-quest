@@ -1,13 +1,21 @@
 import "server-only";
 import { query } from "@/lib/db";
-import { generateMathQuestions } from "@/lib/mathQuestions";
+import { generateMathQuestions, generateMathQuestionByKey } from "@/lib/mathQuestions";
 import { getCategoryWeights, pickWeightedCategories } from "@/lib/categoryWeights";
-import { BANK_CATEGORIES, MAX_REVIEW_QUESTIONS, QUESTIONS_PER_ROUND, type BankCategory, type Level } from "@/lib/config";
+import {
+  BANK_CATEGORIES,
+  MAX_CHECKUP_QUESTIONS,
+  MAX_REVIEW_QUESTIONS,
+  QUESTIONS_PER_ROUND,
+  type BankCategory,
+  type Level,
+} from "@/lib/config";
 import type { QuestionRow } from "@/lib/types";
 
 export interface RoundQuestionDraft {
   source: "bank" | "generated";
   questionId: string | null;
+  templateKey: string | null; // which math generator template produced this (generated only)
   category: string;
   questionText: string;
   options: string[]; // shuffled, display order
@@ -35,6 +43,7 @@ export function toDraft(q: QuestionRow): RoundQuestionDraft {
   return {
     source: "bank",
     questionId: q.id,
+    templateKey: null,
     category: q.category,
     questionText: q.question_text,
     options,
@@ -48,11 +57,29 @@ function generatedDraft(level: Level): RoundQuestionDraft {
   return {
     source: "generated",
     questionId: null,
+    templateKey: q!.templateKey,
     category: q!.category,
     questionText: q!.questionText,
     options: q!.options,
     correctIndex: q!.correctIndex,
     explanation: q!.explanation,
+  };
+}
+
+/** Regenerates a question from a specific math template (new random
+ * numbers, same underlying skill) - used by buildCheckupQuestions to
+ * "recheck" a template the child previously got wrong. */
+function generatedDraftByKey(level: Level, templateKey: string): RoundQuestionDraft {
+  const q = generateMathQuestionByKey(level, templateKey);
+  return {
+    source: "generated",
+    questionId: null,
+    templateKey: q.templateKey,
+    category: q.category,
+    questionText: q.questionText,
+    options: q.options,
+    correctIndex: q.correctIndex,
+    explanation: q.explanation,
   };
 }
 
@@ -162,4 +189,108 @@ export async function buildReviewQuestions(childId: string): Promise<RoundQuesti
   );
 
   return rows.map(toDraft);
+}
+
+/** Finds a bank question to stand in for `original` on a checkup - same
+ * skill, but NOT the same question, since getting the literal question
+ * right again would just be memorization. Prefers another active question
+ * at the same level sharing `original`'s admin-set concept tag; falls back
+ * to any other active question in the same category if there's no tagged
+ * match (or no tag at all). Returns null if nothing else is available. */
+async function pickSimilarBankQuestion(original: QuestionRow, excludeIds: Set<string>): Promise<QuestionRow | null> {
+  if (original.concept) {
+    const byConcept = await query<QuestionRow>(
+      `SELECT id, level, category, question_text, options, correct_option_index, explanation, concept, is_active, created_at
+       FROM questions WHERE level = $1 AND concept = $2 AND is_active = true AND id != $3`,
+      [original.level, original.concept, original.id]
+    );
+    const pool = byConcept.filter((q) => !excludeIds.has(q.id));
+    if (pool.length > 0) return pickRandom(pool);
+  }
+
+  const byCategory = await query<QuestionRow>(
+    `SELECT id, level, category, question_text, options, correct_option_index, explanation, concept, is_active, created_at
+     FROM questions WHERE level = $1 AND category = $2 AND is_active = true AND id != $3`,
+    [original.level, original.category, original.id]
+  );
+  const pool = byCategory.filter((q) => !excludeIds.has(q.id));
+  return pool.length > 0 ? pickRandom(pool) : null;
+}
+
+type CheckupWrongItem =
+  | { kind: "bank"; row: QuestionRow; answeredAt: string }
+  | { kind: "generated"; level: Level; templateKey: string; answeredAt: string };
+
+/** Picks up to MAX_CHECKUP_QUESTIONS questions for a child's daily
+ * "checkup" - see lib/checkupProgress.ts for when this is due. Unlike
+ * buildReviewQuestions, this never replays the exact question the child
+ * got wrong: bank questions are swapped for a different one testing the
+ * same concept/category (pickSimilarBankQuestion), and generated (math)
+ * questions are regenerated from the same template with new numbers
+ * (generateMathQuestionByKey) - so answering correctly this time is real
+ * evidence of understanding, not recall. Falls back to literally repeating
+ * a bank question only if there's truly nothing else to swap it for.
+ * Returns an empty array if there's nothing to check up on right now. */
+export async function buildCheckupQuestions(childId: string): Promise<RoundQuestionDraft[]> {
+  const wrongBank = await query<QuestionRow & { answered_at: string }>(
+    `SELECT q.id, q.level, q.category, q.question_text, q.options, q.correct_option_index, q.explanation,
+            q.concept, q.is_active, q.created_at, latest.answered_at
+     FROM (
+       SELECT DISTINCT ON (rq.question_id) rq.question_id, rq.is_correct, rq.answered_at
+       FROM round_questions rq
+       JOIN rounds r ON r.id = rq.round_id
+       WHERE r.child_id = $1 AND rq.source = 'bank' AND rq.question_id IS NOT NULL AND rq.answered_at IS NOT NULL
+       ORDER BY rq.question_id, rq.answered_at DESC
+     ) latest
+     JOIN questions q ON q.id = latest.question_id
+     WHERE latest.is_correct = false AND q.is_active = true
+     ORDER BY latest.answered_at DESC`,
+    [childId]
+  );
+
+  const wrongGenerated = await query<{ template_key: string; level: Level; answered_at: string }>(
+    `SELECT t.template_key, t.level, t.answered_at
+     FROM (
+       SELECT DISTINCT ON (rq.template_key) rq.template_key, rq.is_correct, rq.answered_at, r.level
+       FROM round_questions rq
+       JOIN rounds r ON r.id = rq.round_id
+       WHERE r.child_id = $1 AND rq.source = 'generated' AND rq.template_key IS NOT NULL AND rq.answered_at IS NOT NULL
+       ORDER BY rq.template_key, rq.answered_at DESC
+     ) t
+     WHERE t.is_correct = false
+     ORDER BY t.answered_at DESC`,
+    [childId]
+  );
+
+  const combined: CheckupWrongItem[] = [
+    ...wrongBank.map((row) => ({ kind: "bank" as const, row, answeredAt: row.answered_at })),
+    ...wrongGenerated.map((g) => ({
+      kind: "generated" as const,
+      level: g.level,
+      templateKey: g.template_key,
+      answeredAt: g.answered_at,
+    })),
+  ];
+  combined.sort((a, b) => new Date(b.answeredAt).getTime() - new Date(a.answeredAt).getTime());
+  const chosen = combined.slice(0, MAX_CHECKUP_QUESTIONS);
+
+  const drafts: RoundQuestionDraft[] = [];
+  const usedBankIds = new Set<string>();
+  for (const item of chosen) {
+    if (item.kind === "generated") {
+      drafts.push(generatedDraftByKey(item.level, item.templateKey));
+      continue;
+    }
+    const substitute = await pickSimilarBankQuestion(item.row, usedBankIds);
+    if (substitute) {
+      usedBankIds.add(substitute.id);
+      drafts.push(toDraft(substitute));
+    } else {
+      // Nothing else to swap it for - repeating it is still better than
+      // skipping the recheck entirely.
+      drafts.push(toDraft(item.row));
+    }
+  }
+
+  return drafts;
 }

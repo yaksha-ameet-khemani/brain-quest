@@ -31,8 +31,12 @@ export async function getLevelProgress(childId: string, baseLevel: Level): Promi
   const startIso = start.toISOString();
   const endIso = end.toISOString();
 
+  // kind = 'standard' only - review and checkup rounds are variable-length
+  // and not the normal daily quota, so counting them here would corrupt
+  // both "rounds done today" and the accuracy math below, which assumes
+  // QUESTIONS_PER_ROUND questions per round.
   const baseRounds = await query<{ status: string; correct_count: number }>(
-    "SELECT status, correct_count FROM rounds WHERE child_id = $1 AND level = $2 AND started_at >= $3 AND started_at < $4",
+    "SELECT status, correct_count FROM rounds WHERE child_id = $1 AND level = $2 AND kind = 'standard' AND started_at >= $3 AND started_at < $4",
     [childId, baseLevel, startIso, endIso]
   );
   const completedBase = baseRounds.filter((r) => r.status === "completed");

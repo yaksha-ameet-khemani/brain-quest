@@ -51,6 +51,16 @@ export const BONUS_ROUNDS_PER_DAY = 3;
 export const REVIEW_ROUNDS_PER_DAY = 1;
 export const MAX_REVIEW_QUESTIONS = 5;
 
+// A "checkup" is a mandatory short round served instead of a child's first
+// standard round of the day, whenever they have recent wrong answers to
+// recheck - see lib/checkupProgress.ts. Unlike a review round it never
+// replays the exact same question: bank questions are swapped for a
+// different one on the same concept/category, and generated (math)
+// questions are regenerated from the same template with new numbers. Since
+// getting a genuinely different question right is real evidence of
+// understanding, it IS scored normally (not free practice like review).
+export const MAX_CHECKUP_QUESTIONS = 5;
+
 // Points are deliberately close across levels: a harder question should feel
 // harder, not pay a wildly different daily wage. See docs/blueprint.md
 // "Point Economics" for the math behind these numbers.

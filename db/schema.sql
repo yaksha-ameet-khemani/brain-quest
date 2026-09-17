@@ -97,6 +97,10 @@ create table questions (
   options jsonb not null, -- array of 4 strings, canonical storage order
   correct_option_index smallint not null check (correct_option_index between 0 and 3),
   explanation text not null,
+  concept text, -- optional admin-set tag grouping questions that test the same
+                 -- underlying skill (e.g. 'odd-one-out'), so a checkup round
+                 -- (see rounds.kind) can serve a genuinely different question
+                 -- on that same skill instead of a same-category guess
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
@@ -108,7 +112,7 @@ create table rounds (
   id uuid primary key default gen_random_uuid(),
   child_id uuid not null references children (id) on delete cascade,
   level smallint not null check (level in (1, 2, 3)),
-  kind text not null default 'standard' check (kind in ('standard', 'review')), -- 'review' = replaying past wrong answers for practice, never for points
+  kind text not null default 'standard' check (kind in ('standard', 'review', 'checkup')), -- 'review' = replaying past wrong answers for practice, never for points; 'checkup' = a mandatory pre-round recheck using DIFFERENT questions on the same skill, scored normally
   status text not null default 'in_progress' check (status in ('in_progress', 'completed', 'abandoned')),
   correct_count smallint not null default 0,
   points_awarded int not null default 0,
@@ -134,6 +138,9 @@ create table round_questions (
   position smallint not null,
   source text not null check (source in ('bank', 'generated')),
   question_id uuid references questions (id), -- null for generated math questions
+  template_key text, -- which math generator template produced this (source = 'generated' only) -
+                      -- lets a checkup round regenerate a fresh question from the SAME template
+                      -- (same skill, new numbers) instead of literally repeating it
   category text not null,
   question_text text not null,
   options jsonb not null, -- shuffled order as shown to the kid

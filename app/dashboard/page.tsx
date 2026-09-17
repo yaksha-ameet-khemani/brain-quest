@@ -5,6 +5,7 @@ import { queryOne } from "@/lib/db";
 import { getBalance } from "@/lib/balance";
 import { getLevelProgress } from "@/lib/levelProgress";
 import { getReviewProgress } from "@/lib/reviewProgress";
+import { getCheckupProgress } from "@/lib/checkupProgress";
 import { getStreaks } from "@/lib/streak";
 import { LEVELS, MAX_ROUNDS_PER_DAY, type Level } from "@/lib/config";
 import type { ChildRow } from "@/lib/types";
@@ -29,6 +30,7 @@ export default async function DashboardPage() {
   const progress = await getLevelProgress(kid.childId, level);
   const baseRoundsLeft = Math.max(0, MAX_ROUNDS_PER_DAY - progress.baseRoundsToday);
   const reviewProgress = await getReviewProgress(kid.childId);
+  const checkupProgress = await getCheckupProgress(kid.childId);
   const streaks = await getStreaks(kid.childId);
 
   return (
@@ -60,12 +62,22 @@ export default async function DashboardPage() {
       </section>
 
       <section className="grid gap-4">
+        {checkupProgress.checkupAvailableToday && (
+          <p className="rounded-2xl bg-violet-50 px-4 py-3 text-center text-sm font-medium text-violet-700 ring-1 ring-violet-200">
+            🧠 Before today&apos;s round: a quick checkup on {checkupProgress.pendingCount} thing
+            {checkupProgress.pendingCount === 1 ? "" : "s"} you missed last time - similar questions, not the same
+            ones, so we can see it really clicked.
+          </p>
+        )}
+
         {baseRoundsLeft > 0 ? (
           <Link
             href="/quiz"
             className="rounded-2xl bg-brand-500 p-6 text-center text-lg font-bold text-white shadow-sm active:bg-brand-600"
           >
-            🎯 Start a quiz round ({baseRoundsLeft} left today)
+            {checkupProgress.checkupAvailableToday
+              ? "🧠 Start today's checkup"
+              : `🎯 Start a quiz round (${baseRoundsLeft} left today)`}
           </Link>
         ) : (
           <div className="rounded-2xl bg-slate-100 p-6 text-center text-slate-500">

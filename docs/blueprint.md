@@ -502,3 +502,55 @@ feedback to register "not quite" without being unpleasant for a kids' app.
   connections) - a testing-environment artifact from this session's own
   volume of throwaway DB activity, not a defect in the app; noted here for
   the record rather than silently glossed over.
+
+**v14 update - daily "checkup" (real understanding, not memorized
+answers):** per user request, this goes further than v9's review round. A
+review round replays the *exact* wrong question for free practice; a
+checkup serves a *different* question testing the same skill, is mandatory
+(gates a child's first standard round of the day whenever they have
+something to recheck), and is scored normally - getting a genuinely
+different question right is real evidence of understanding, so there's no
+reason to withhold points for it.
+
+- `rounds.kind` gains a third value, `'checkup'` (migration
+  `009_daily_checkup.sql`), alongside two small additions needed to make
+  "different but similar" possible at all:
+  - `questions.concept` - an optional admin-set tag grouping bank questions
+    that test the same underlying skill (e.g. "odd-one-out"). Untagged
+    questions, or a skill with only one question, fall back to same-category.
+  - `round_questions.template_key` - which of `lib/mathQuestions.ts`'s
+    generator templates (now `{ key, run }` pairs instead of bare functions)
+    produced a generated math question. Math has no fixed question identity
+    to repeat, so a checkup instead regenerates from the *same template*
+    with new random numbers via `generateMathQuestionByKey()` - same skill
+    (e.g. "linear_equation"), different numbers.
+- `lib/buildRound.ts`'s `buildCheckupQuestions()` finds each concept/template
+  whose *latest* attempt was wrong (same "latest attempt" definition v9
+  established, extended to cover generated questions via `template_key`
+  instead of `question_id`), then builds a substitute for each: a different
+  bank question sharing the concept tag (or category, as fallback) for bank
+  questions, or a freshly-regenerated question from the same template for
+  math. Capped at `MAX_CHECKUP_QUESTIONS` (5). Falls back to literally
+  repeating a bank question only if there's truly nothing else to swap it
+  for - better than skipping the recheck entirely.
+- The gate lives in `POST /api/round/start`: before building any fresh
+  standard round (any level, any mode except explicit review), it checks
+  `lib/checkupProgress.ts`'s `getCheckupProgress()` and, if a checkup is due
+  and not yet done today, serves that instead - transparently, regardless of
+  what the client requested. The dashboard just relabels the existing "Start
+  a quiz round" button to "🧠 Start today's checkup" when one is pending, so
+  there's no separate flow for a kid to discover or skip.
+- Scored normally (unlike review): the answer route's `isReview` short-
+  circuit only checks for `kind === 'review'`, so a checkup round earns
+  points, streak bonus, speed bonus, and the perfect-round bonus exactly
+  like a standard round, with no code change needed there.
+- Fixed a related latent gap while wiring this up: `lib/levelProgress.ts`'s
+  bonus-unlock query counted *any* round at the child's base level today,
+  including review rounds (variable length, unscored) - which could already
+  inflate "rounds done today" and skew the accuracy math before this
+  feature existed. Now filtered to `kind = 'standard'`, which fixes review's
+  pre-existing exposure to this too, not just checkup's.
+- Admin UI: `components/QuestionBank.tsx` gained an optional "Concept tag"
+  field (with a badge on each question card) so tagging is opt-in and
+  incremental - existing untagged questions keep working via the
+  same-category fallback.

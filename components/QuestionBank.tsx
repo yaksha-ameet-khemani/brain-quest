@@ -13,6 +13,7 @@ interface BankQuestion {
   options: string[];
   correctOptionIndex: number;
   explanation: string;
+  concept: string | null;
   isActive: boolean;
   attempts: number;
   correct: number;
@@ -26,6 +27,7 @@ const BLANK_FORM = {
   options: ["", "", "", ""],
   correctOptionIndex: "0",
   explanation: "",
+  concept: "",
 };
 
 export default function QuestionBank() {
@@ -71,6 +73,7 @@ export default function QuestionBank() {
       options: [...q.options],
       correctOptionIndex: String(q.correctOptionIndex),
       explanation: q.explanation,
+      concept: q.concept ?? "",
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -101,6 +104,7 @@ export default function QuestionBank() {
         options: form.options,
         correctOptionIndex: Number(form.correctOptionIndex),
         explanation: form.explanation,
+        concept: form.concept.trim() || null,
       };
       const res = await fetch(editingId ? `/api/admin/questions/${editingId}` : "/api/admin/questions", {
         method: editingId ? "PATCH" : "POST",
@@ -197,6 +201,16 @@ export default function QuestionBank() {
             className="rounded-xl border border-slate-200 p-3"
             rows={2}
           />
+          <input
+            placeholder="Concept tag (optional, e.g. 'odd-one-out')"
+            value={form.concept}
+            onChange={(e) => setForm((s) => ({ ...s, concept: e.target.value }))}
+            className="rounded-xl border border-slate-200 p-3"
+          />
+          <p className="-mt-2 text-xs text-slate-400">
+            Group questions that test the same skill so a child&apos;s daily checkup can swap in a different
+            question on that skill instead of a random one from the category.
+          </p>
           {message && <p className="text-sm text-brand-700">{message}</p>}
           <div className="flex gap-2">
             <button
@@ -266,6 +280,11 @@ export default function QuestionBank() {
                       {q.category}
                     </span>
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold">Level {q.level}</span>
+                    {q.concept && (
+                      <span className="rounded-full bg-violet-100 px-2 py-0.5 font-semibold text-violet-700">
+                        {q.concept}
+                      </span>
+                    )}
                     {!q.isActive && (
                       <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-600">
                         Archived
