@@ -554,3 +554,68 @@ reason to withhold points for it.
   field (with a badge on each question card) so tagging is opt-in and
   incremental - existing untagged questions keep working via the
   same-category fallback.
+
+**v15 update - backups moved into this repo, encrypted:** per user request,
+v11's "push the daily dump to a second, private repo" design is replaced.
+The dump now lands in **this** (public) repo's own `backup/` folder -
+`backup/<date>/backup-<time>.json.enc` - and an admin can also trigger one
+on demand from the parent dashboard, not just wait for the daily schedule.
+What makes committing a full, unredacted table dump (names, emails, hashed
+PINs/passwords, kid photos) into a *public* repo acceptable is that it's
+never written to disk, committed, or transmitted unencrypted: AES-256-GCM
+under a single symmetric key (`BACKUP_ENCRYPTION_KEY`) the household
+generates once and holds outside both GitHub and Vercel. This was a
+deliberate reversal of v11's stated reasoning, confirmed explicitly with
+the user (who considered and rejected both "keep it private" and "back up
+everything except the sensitive fields" as alternatives) rather than
+assumed.
+
+- `lib/backupEncryption.ts` (`encryptBackup()`) is the app-side half - Node's
+  built-in `crypto`, no new dependency, same as v11's "use what's already
+  there" instinct. Output format is one self-contained base64 string per
+  backup: a random 12-byte IV + the 16-byte GCM auth tag + the ciphertext,
+  concatenated - nothing but the key itself is needed to decrypt it later.
+  `scripts/backup.mjs` (the scheduled path) and `scripts/decryptBackup.mjs`
+  (new - the only way back to readable JSON) duplicate this same ~10-line
+  scheme directly rather than importing the `.ts` version, since they run as
+  standalone Node scripts outside Next's build and can't resolve `@/lib/...`
+  or strip TypeScript on their own - consistent with this project's general
+  bias toward small duplication over forcing a shared-module dependency
+  across two different runtimes.
+- Two ways a backup happens now, both landing in the same place:
+  - **Scheduled** (`'.github/workflows/backup.yml'`): simplified from v11,
+    since the destination is now this same repo - drops the second
+    checkout, `BACKUP_REPO`, and `BACKUP_REPO_TOKEN` entirely, and instead
+    just needs `permissions: contents: write` on the workflow so its own
+    built-in `GITHUB_TOKEN` can push. `scripts/backup.mjs` writes the
+    encrypted file directly into the already-checked-out working tree,
+    then a plain `git add backup/ && git commit && git push` step lands it.
+  - **Admin-triggered** (`app/api/admin/backup/route.ts`, `requireAdmin()`
+    guarded): the live app runs on Vercel, which has no local git checkout
+    to push from at all, so a button click can't just shell out to `git`.
+    Instead it authenticates as a fine-grained PAT (`GITHUB_BACKUP_TOKEN`,
+    scoped to only this repo, Contents: read/write) and calls GitHub's
+    Contents API (`PUT /repos/{owner}/{repo}/contents/{path}`) directly,
+    which creates the commit server-side in one HTTP call - no git binary,
+    no working directory, no separate checkout needed.
+  - Both share `lib/backupTables.ts`'s table list (used directly by the
+    route; duplicated in the two standalone scripts for the same reason as
+    the encryption logic) and the same JSON shape (`{ manifest, tables }`
+    with per-table row counts), so a decrypted file from either path reads
+    identically regardless of which one produced it.
+- Filenames are timestamped (`backup-143200.json.enc`, not just a date), so
+  a manual backup never collides with - or silently overwrites - the same
+  day's scheduled one.
+- The key itself is intentionally the single point of trust: it lives in
+  GitHub's repo secrets (scheduled path), Vercel's environment variables
+  (admin-triggered path), and the household's own safe-keeping - never in
+  the repo, and neither secret store lets it be viewed again after it's
+  entered, only replaced. Losing it means every past backup becomes
+  permanently unreadable; leaking it means every past backup becomes
+  readable in one shot, since they all sit encrypted-but-present in public
+  git history forever. Both are stated plainly in `docs/SETUP.md` rather
+  than glossed over, since this is exactly the kind of irreversible
+  tradeoff that shouldn't be a surprise later.
+- Restore is still deliberately not built (same as v11) - `decryptBackup.mjs`
+  gets you back to readable JSON; loading that into a live database remains
+  a "build it if the day actually comes" item.

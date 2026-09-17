@@ -65,6 +65,8 @@ export default function ParentDashboard({
   const [activity, setActivity] = useState<ActivitySummary[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [backupRunning, setBackupRunning] = useState(false);
+  const [backupResult, setBackupResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [newChild, setNewChild] = useState<{
     name: string;
@@ -131,6 +133,28 @@ export default function ParentDashboard({
       if (res.ok) await refresh();
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function runBackupNow() {
+    setBackupRunning(true);
+    setBackupResult(null);
+    try {
+      const res = await fetch("/api/admin/backup", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setBackupResult({ ok: false, text: data.error ?? "Backup failed." });
+        return;
+      }
+      const counted = Object.values(data.rowCounts as Record<string, number>).reduce(
+        (sum: number, n: number) => sum + n,
+        0
+      );
+      setBackupResult({ ok: true, text: `Backed up ${counted} rows to ${data.path}.` });
+    } catch {
+      setBackupResult({ ok: false, text: "Network error running the backup." });
+    } finally {
+      setBackupRunning(false);
     }
   }
 
@@ -374,6 +398,31 @@ export default function ParentDashboard({
               </div>
             ))}
             {activity.length === 0 && <p className="text-sm text-slate-500">No activity yet.</p>}
+          </div>
+        </section>
+      )}
+
+      {role === "admin" && (
+        <section>
+          <h2 className="mb-3 text-lg font-bold">📦 Database backups (admin only)</h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Also runs automatically every day. A manual backup is encrypted and committed straight into this
+            repo&apos;s <code>backup/</code> folder - only decryptable with the key you hold, not visible as
+            readable data to anyone browsing the repo.
+          </p>
+          <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+            <button
+              onClick={runBackupNow}
+              disabled={backupRunning}
+              className="rounded-xl bg-slate-800 px-4 py-3 font-semibold text-white disabled:opacity-50"
+            >
+              {backupRunning ? "Backing up…" : "Back up now"}
+            </button>
+            {backupResult && (
+              <p className={`mt-2 text-sm ${backupResult.ok ? "text-emerald-600" : "text-rose-600"}`}>
+                {backupResult.text}
+              </p>
+            )}
           </div>
         </section>
       )}

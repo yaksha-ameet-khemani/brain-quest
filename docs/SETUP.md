@@ -107,39 +107,61 @@ home page and enter that PIN to play.
 
 ## 8. Automated backups (optional, but recommended, still free)
 
-`.github/workflows/backup.yml` dumps every table to JSON daily - but it
-needs somewhere private to put that dump, since this app's own repo is
-public and a backup necessarily contains family PII (names, emails, hashed
-passwords/PINs, kid photos). Until you do this, the workflow runs on
-schedule and safely no-ops (you'll see a skipped run with a warning in the
-Actions tab) - the app itself is completely unaffected either way.
+`.github/workflows/backup.yml` dumps every table daily and commits it
+straight into **this repo**, at `backup/<date>/backup-<time>.json.enc`. This
+repo is public, so that file is encrypted (AES-256-GCM) before it's ever
+written to disk - without the key below, it's unreadable noise to anyone
+browsing the repo. Until you do this setup, the scheduled workflow runs and
+safely no-ops (a skipped run with a warning in the Actions tab); the admin
+"Back up now" button (see below) shows a clear error instead of failing
+silently. The app itself is unaffected either way.
 
-1. Create a **new, separate, private** GitHub repo to hold backups only
-   (e.g. `brain-quest-backups`) - private repos are free. It can start
-   completely empty.
-2. Create a fine-grained personal access token
-   (https://github.com/settings/personal-access-tokens/new) scoped to
-   **only that one backup repo**, with **Contents: Read and write**
-   permission and nothing else. Give it whatever expiry you're comfortable
-   re-creating later (a PAT can always be regenerated and the secret
-   updated).
-3. In **this** repo's **Settings → Secrets and variables → Actions**, add
-   three repository secrets:
+1. Generate the encryption key **once**:
+   ```bash
+   openssl rand -base64 32
+   ```
+   Save that value somewhere safe outside GitHub/Vercel entirely (a password
+   manager is ideal) **right now** - both of the places it goes next are
+   write-only. If you ever lose your own copy, every backup ever taken
+   becomes permanently unreadable; there is no recovery.
+2. In **this** repo's **Settings → Secrets and variables → Actions**, add
+   two repository secrets:
    - `DATABASE_URL` - the same pooled connection string from step 1 (GitHub
      Actions can't see your Vercel environment variables, so this needs to
      be added here too).
-   - `BACKUP_REPO` - `your-github-username/brain-quest-backups` (or
-     whatever you named it).
-   - `BACKUP_REPO_TOKEN` - the token from step 2.
-4. That's it - it runs automatically every day, and you can trigger it
-   manually from this repo's **Actions** tab any time ("Run workflow"). Each
-   run adds a dated folder (`2026-01-15/`, etc.) with one JSON file per
-   table to the backup repo.
+   - `BACKUP_ENCRYPTION_KEY` - the value from step 1.
 
-Restoring from a backup means reading the JSON back in with a small script
-against `db/schema.sql` on a fresh database - there's no one-command
-restore script yet, since it's never been needed; ask for one if the day
-comes.
+   That's enough for the **daily automatic** backup - it now runs entirely
+   inside GitHub Actions using its own built-in permission to push to this
+   repo, no extra token needed. You can also trigger it manually from this
+   repo's **Actions** tab any time ("Run workflow").
+
+3. For the **admin "Back up now" button** in the parent dashboard to work
+   too, add two more environment variables in **Vercel → your project →
+   Settings → Environment Variables**:
+   - `BACKUP_ENCRYPTION_KEY` - the exact same value from step 1 (the button
+     and the scheduled workflow must use the same key, since either one
+     might need to decrypt what the other produced later).
+   - `GITHUB_BACKUP_TOKEN` - a fine-grained personal access token
+     (https://github.com/settings/personal-access-tokens/new) scoped to
+     **only this repo**, with **Contents: Read and write** permission and
+     nothing else. This is what lets a click on the website actually create
+     a commit, since the running app has no local git checkout to push
+     from.
+4. Redeploy on Vercel after adding those (see "Deploying a change" above)
+   so the new environment variables take effect.
+
+Each backup run adds one encrypted file under `backup/<date>/` - dated
+folders, timestamped filenames so a manual backup never collides with the
+scheduled one on the same day.
+
+**Reading a backup back:**
+```bash
+BACKUP_ENCRYPTION_KEY=<your key> node scripts/decryptBackup.mjs backup/2026-09-18/backup-191500.json.enc
+```
+This writes the decrypted JSON next to the input file. There's no
+one-command restore-into-Postgres script yet, since it's never been needed;
+ask for one if the day comes.
 
 ## Rebalancing the game later
 

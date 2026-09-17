@@ -1,28 +1,34 @@
 name: Back up the database
 
-# Dumps every table to JSON and pushes it into a SEPARATE, PRIVATE repo - not
-# this one, since this repo is public and a backup necessarily contains
-# family PII (names, emails, hashed passwords/PINs, kid photos). See
-# docs/SETUP.md's "Automated backups" section for the one-time setup this
-# needs (a private repo + a fine-grained PAT), which only the account owner
-# can do - this workflow no-ops safely until that's in place.
+# Dumps every table, encrypts the dump (AES-256-GCM under
+# BACKUP_ENCRYPTION_KEY), and commits it straight into this repo's own
+# backup/ folder. This repo is public, so the encryption is what makes that
+# safe - the committed file is unreadable without the key, which lives only
+# in this repo's secrets, in Vercel's environment variables (for the
+# admin-triggered backup - see app/api/admin/backup/route.ts), and wherever
+# the household keeps its own copy. See docs/SETUP.md's "Automated backups"
+# section for the one-time key setup this needs - it no-ops safely (with a
+# warning) until that's in place.
 on:
   schedule:
     - cron: "15 19 * * *" # daily, 19:15 UTC
   workflow_dispatch: {} # lets you trigger it manually from the Actions tab
 
+permissions:
+  contents: write # needed to commit the backup file into this repo
+
 jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: Check backup destination is configured
+      - name: Check backup key is configured
         id: check
         run: |
-          if [ -n "${{ secrets.BACKUP_REPO_TOKEN }}" ] && [ -n "${{ secrets.BACKUP_REPO }}" ] && [ -n "${{ secrets.DATABASE_URL }}" ]; then
+          if [ -n "${{ secrets.BACKUP_ENCRYPTION_KEY }}" ] && [ -n "${{ secrets.DATABASE_URL }}" ]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Backup destination isn't configured yet (BACKUP_REPO / BACKUP_REPO_TOKEN / DATABASE_URL secrets) - see docs/SETUP.md. Skipping this run."
+            echo "::warning::Backup isn't configured yet (BACKUP_ENCRYPTION_KEY / DATABASE_URL secrets) - see docs/SETUP.md. Skipping this run."
           fi
 
       - uses: actions/checkout@v4
@@ -37,29 +43,18 @@ jobs:
         if: steps.check.outputs.configured == 'true'
         run: npm ci
 
-      - name: Dump every table to JSON
+      - name: Dump every table, encrypt, write to backup/<date>/
         if: steps.check.outputs.configured == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
         run: node scripts/backup.mjs
 
-      - name: Check out the private backup repo
-        if: steps.check.outputs.configured == 'true'
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ secrets.BACKUP_REPO }}
-          token: ${{ secrets.BACKUP_REPO_TOKEN }}
-          path: backup-repo
-
-      - name: Commit and push today's dump
+      - name: Commit and push today's backup
         if: steps.check.outputs.configured == 'true'
         run: |
-          DATE=$(date -u +%F)
-          mkdir -p "backup-repo/$DATE"
-          cp backup-output/*.json "backup-repo/$DATE/"
-          cd backup-repo
           git config user.name "brain-quest-backup"
           git config user.email "actions@users.noreply.github.com"
-          git add "$DATE"
-          git commit -m "Backup $DATE" || { echo "Nothing changed - skipping commit"; exit 0; }
+          git add backup/
+          git commit -m "Backup $(date -u +%F)" || { echo "Nothing changed - skipping commit"; exit 0; }
           git push

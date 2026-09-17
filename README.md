@@ -94,11 +94,17 @@ Open http://localhost:3000.
   the child's profile/PIN.
 
 **Backups**
-- `.github/workflows/backup.yml` dumps every table to JSON daily, pushed
-  into a second, separate, **private** GitHub repo (never this one, since
-  this repo is public and a dump contains family PII). Needs a one-time
-  setup only the account owner can do - see `docs/SETUP.md`'s "Automated
-  backups" section. Until that's done, the workflow safely no-ops.
+- `.github/workflows/backup.yml` dumps every table daily and commits it
+  straight into **this same repo**, at `backup/<date>/backup-<time>.json.enc`.
+  Since this repo is public, the dump is AES-256-GCM encrypted before it
+  ever touches disk - unreadable to anyone without the encryption key,
+  which lives only in GitHub's secrets, Vercel's environment variables, and
+  wherever the household keeps its own copy (never in the repo). Admin can
+  also trigger one on demand from the "📦 Database backups" section of the
+  parent dashboard. Needs a one-time key setup only the account owner can
+  do - see `docs/SETUP.md`'s "Automated backups" section. Until that's
+  done, the scheduled workflow safely no-ops and the admin button shows a
+  clear error instead of failing silently.
 
 ## Project structure
 
@@ -114,7 +120,7 @@ app/                 Pages (App Router) and API route handlers
 components/          Shared client components
 lib/                 Config, database access, auth, question generation, level progress
 db/                  schema.sql + seed.sql (fresh install) + migrations/ (applied-to-prod history)
-scripts/             backup.mjs - dumps every table to JSON (used by the backup workflow)
+scripts/             backup.mjs (dump+encrypt for the scheduled workflow), decryptBackup.mjs (read one back)
 docs/                Setup guide and the versioned blueprint/design doc
 .github/workflows/   Free weekly keep-alive ping + daily database backup
 ```
