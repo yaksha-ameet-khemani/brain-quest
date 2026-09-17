@@ -752,3 +752,29 @@ rather than stored.
   across all 9 buckets) plus the identical content appended to `db/seed.sql`
   for fresh installs, itself syntax-validated the same way before being
   left in place.
+
+**v19 update - one child's last-login, shown on their own PIN screen:** per
+user request, deliberately checked against v8's precedent before building
+anything, since this is the same family asking for a version of exactly
+what v8 removed (a no-login "last login" indicator). Confirmed explicitly
+with the user rather than assumed: v8's actual complaint was several kids'
+numbers sitting *side by side* on the homepage reading like a sibling
+leaderboard, not the mere existence of a last-login timestamp - so the
+shape that survives that objection is showing only the ONE child whose
+avatar was just tapped, on their own PIN entry screen, never a
+homepage-wide list.
+
+- `app/kid/[childId]/page.tsx` (already an unauthenticated page - it has to
+  be, since a kid hasn't entered their PIN yet) now also queries that one
+  child's most recent `child_logins` row and passes it to `PinEntry`.
+  `components/PinEntry.tsx` renders "Last played: <relative time>" between
+  the PIN dots and the numpad, using `lib/format.ts`'s `formatRelativeTime()` -
+  which already existed, unused, since before v8 removed its last caller.
+- The homepage itself (`app/page.tsx`) is untouched - still just the picker,
+  confirmed by grepping the real rendered HTML for any activity-related
+  text and finding none.
+- Verified against the real database: fetched the real PIN page for two
+  different children with actual login history and confirmed each showed
+  only their own correct relative time ("5h ago", "2h ago") computed from
+  their real `child_logins` row - not the other child's, and not a list of
+  both at once.

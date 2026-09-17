@@ -3,17 +3,20 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Avatar from "@/components/Avatar";
+import { formatRelativeTime } from "@/lib/format";
 
 export default function PinEntry({
   childId,
   name,
   avatar,
   photoDataUrl,
+  lastLoginAt,
 }: {
   childId: string;
   name: string;
   avatar: string;
   photoDataUrl?: string | null;
+  lastLoginAt?: string | null;
 }) {
   const router = useRouter();
   const [pin, setPin] = useState("");
@@ -71,6 +74,10 @@ export default function PinEntry({
       </div>
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+
+      {lastLoginAt !== undefined && (
+        <p className="text-xs text-slate-400">Last played: {formatRelativeTime(lastLoginAt)}</p>
+      )}
 
       <div className="grid grid-cols-3 gap-3">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (

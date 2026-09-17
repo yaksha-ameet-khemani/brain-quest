@@ -88,7 +88,10 @@ Open http://localhost:3000.
 
 **Visibility**
 - The homepage is just the child picker and a Parent Mode link - no activity
-  data is shown there or anywhere without signing in.
+  data is shown there or anywhere without signing in. Tapping a child's own
+  avatar shows a "Last played: ..." line on *their own* PIN screen only -
+  never a side-by-side list of every kid's activity at once (see
+  `docs/blueprint.md` v8/v19 for why that distinction matters here).
 - A signed-in parent sees their own children's full detail: every question
   ever asked, what was picked, right or wrong, and how long it took, plus a
   per-child **Report** tab - a plain-English summary of how they're doing,
