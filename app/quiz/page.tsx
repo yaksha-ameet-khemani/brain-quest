@@ -70,6 +70,7 @@ function QuizPageInner() {
   const [question, setQuestion] = useState<Question | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [result, setResult] = useState<AnswerResult | null>(null);
+  const [answerRevealed, setAnswerRevealed] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -136,6 +137,18 @@ function QuizPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsLeft, phase]);
 
+  // On a wrong/timed-out answer, the correct option stays hidden behind a
+  // "Show answer" tap so a kid can try to reason it out from the
+  // explanation first - see the feedback-phase render below. But once the
+  // same forced-read countdown that guards "Next question" runs out, reveal
+  // it automatically too, so a kid who never taps the button still sees the
+  // right answer before moving on instead of possibly never learning it.
+  useEffect(() => {
+    if (phase === "feedback" && secondsLeft === 0) {
+      setAnswerRevealed(true);
+    }
+  }, [phase, secondsLeft]);
+
   // Bigger celebration once, right when the "done" screen first appears -
   // not on every re-render while it's showing.
   useEffect(() => {
@@ -170,6 +183,7 @@ function QuizPageInner() {
         return;
       }
       setResult(data);
+      setAnswerRevealed(false);
       setPhase("feedback");
       // Reuses the exact same countdown the question phase just used (one
       // timer on screen at a time, never two) to force a minimum read of
@@ -305,10 +319,33 @@ function QuizPageInner() {
             </p>
           )}
           <p className="mt-4 text-sm font-medium text-slate-700">{question.questionText}</p>
-          <p className="mt-3 text-sm text-slate-600">
-            Correct answer: <span className="font-semibold">{question.options[result.correctIndex]}</span>
-          </p>
-          <p className="mt-2 text-sm text-slate-500">{result.explanation}</p>
+
+          {result.isCorrect || answerRevealed ? (
+            <>
+              <p className="mt-3 text-sm text-slate-600">
+                Correct answer: <span className="font-semibold">{question.options[result.correctIndex]}</span>
+              </p>
+              <p className="mt-2 text-sm text-slate-500">{result.explanation}</p>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-sm text-slate-500">{result.explanation}</p>
+              <div className="mt-3 grid gap-1.5 text-left text-sm text-slate-500">
+                {question.options.map((opt, i) => (
+                  <p key={i}>• {opt}</p>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                See if you can work it out from the explanation above first.
+              </p>
+              <button
+                onClick={() => setAnswerRevealed(true)}
+                className="mt-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-brand-600 shadow-sm ring-1 ring-slate-100"
+              >
+                🔍 Show answer
+              </button>
+            </>
+          )}
         </div>
         <button
           onClick={nextQuestion}

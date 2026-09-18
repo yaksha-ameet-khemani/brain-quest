@@ -106,6 +106,12 @@ Open http://localhost:3000.
   just used - so a round can't be blitzed through without the explanation
   ever being on screen long enough to read. Length is admin-configurable per
   child (see above); 6 seconds otherwise.
+- On a wrong or timed-out answer specifically, the correct option stays
+  hidden at first - just the explanation and the plain list of choices - so
+  a child can try to reason it out before tapping "🔍 Show answer" to
+  reveal it. It reveals on its own once the forced-read countdown above
+  runs out, so nobody leaves a question without ever seeing the right
+  answer. A correct answer is never hidden - there's nothing to guess.
 - Every button that kicks off a network request (answering a question,
   approving/denying a reward, archiving a question or reward, signing out,
   running a backup, saving a timer or category priority, and more) shows a

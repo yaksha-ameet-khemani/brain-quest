@@ -953,3 +953,23 @@ question bug in review rounds (found from actually watching Banku play):**
   wrong ones, while still drawn from the same categories. Cleaned up
   immediately after. `npx tsc --noEmit` and `eslint` clean across every
   changed file.
+
+**v22 update - "Show answer" on a wrong/timed-out answer, instead of
+revealing it immediately:** user's idea, not a bug report - the feedback
+screen used to show the correct answer and the explanation together no
+matter what, so a kid who got it wrong or timed out could read the
+explanation passively without ever actually trying to work out the answer
+first. `app/quiz/page.tsx`'s feedback view now branches on
+`result.isCorrect`: a correct answer still shows immediately (nothing to
+guess), but a wrong/timed-out one shows the explanation and the plain list
+of that question's options with the correct one NOT marked, plus a
+"🔍 Show answer" button - clicking it (new `answerRevealed` state) switches
+to the same "Correct answer: X" + explanation view as before. Deliberately
+tied to the existing v20 forced-read countdown rather than adding a second
+timer (still exactly one on screen at a time): a new effect watches
+`secondsLeft === 0` while `phase === "feedback"` and auto-sets
+`answerRevealed = true`, so a kid who never taps the button still sees the
+right answer by the time "Next question" unlocks, instead of potentially
+never learning it. Purely a client-side change - no API/schema touched.
+Verified with `npx tsc --noEmit`, `eslint`, and a full `npm run build`
+(catches React hooks-rules issues the other two don't) - all clean.
