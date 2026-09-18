@@ -64,6 +64,15 @@ Open http://localhost:3000.
 - Admin can set a per-child, per-category priority weight (e.g. give a kid
   more logic practice if that's their weak spot), which steers what shows
   up in that child's rounds.
+- Admin can also override a specific child's per-question timer (10-300s,
+  add/update/delete - deleting reverts to the level default) from the same
+  child detail page, for a kid who needs more or less time than their level
+  default gives everyone else.
+- A bank question a child has already been shown never repeats until every
+  other active question in that (level, category) bucket has been shown at
+  least once too - tracked across their *entire* history, not just a recent
+  window, so a heavy play day can't push an earlier question back into
+  rotation early.
 - A child who finishes all of a day's rounds with better than 75% accuracy
   unlocks 3 bonus rounds at the next level up, for that day - a repeatable
   daily stretch-goal, not a permanent level change. (A Level 3 child is
@@ -85,6 +94,12 @@ Open http://localhost:3000.
   in-browser via the Web Audio API) celebrate correct answers and finished
   rounds, with a bigger celebration for a perfect round. A 🔊/🔇 toggle on
   the quiz screen remembers its state per-device.
+- After answering, the explanation screen shows the original question text
+  next to the correct answer and explanation (not just the answer alone),
+  and the "Next question" button stays locked behind a short forced-read
+  countdown - the same one-timer-at-a-time countdown the question itself
+  just used - so a round can't be blitzed through without the explanation
+  ever being on screen long enough to read.
 
 **Visibility**
 - The homepage is just the child picker and a Parent Mode link - no activity

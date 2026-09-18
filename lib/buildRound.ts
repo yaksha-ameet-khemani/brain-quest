@@ -109,15 +109,24 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
   const childRounds = await query<{ id: string }>("SELECT id FROM rounds WHERE child_id = $1", [childId]);
   const roundIds = childRounds.map((r) => r.id);
 
-  let recentIds = new Set<string>();
+  // Every bank question this child has EVER been shown (any round kind),
+  // with the most recent time each one was shown - not just the last 30
+  // shows. A fixed-size "last 30" window used to get blown through in a
+  // single busy session (several rounds plus a review/checkup back to
+  // back), letting a question already seen earlier that same day resurface
+  // a round or two later. Tracking the whole history instead means a
+  // question can only repeat once every question in its (level, category)
+  // bank bucket has already been shown at least once.
+  let lastShownAt = new Map<string, number>();
   if (roundIds.length > 0) {
-    const recent = await query<{ question_id: string | null }>(
-      `SELECT question_id FROM round_questions
-       WHERE round_id = ANY($1::uuid[]) AND source = 'bank'
-       ORDER BY shown_at DESC NULLS LAST LIMIT 30`,
+    const shown = await query<{ question_id: string; last_shown_at: string }>(
+      `SELECT question_id, MAX(shown_at) AS last_shown_at
+       FROM round_questions
+       WHERE round_id = ANY($1::uuid[]) AND source = 'bank' AND question_id IS NOT NULL AND shown_at IS NOT NULL
+       GROUP BY question_id`,
       [roundIds]
     );
-    recentIds = new Set(recent.map((r) => r.question_id).filter((id): id is string => Boolean(id)));
+    lastShownAt = new Map(shown.map((r) => [r.question_id, new Date(r.last_shown_at).getTime()]));
   }
 
   const usedThisRound = new Set<string>();
@@ -125,8 +134,17 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
   function pickFromCategory(category: BankCategory): QuestionRow | null {
     const pool = (bankByCategory.get(category) ?? []).filter((q) => !usedThisRound.has(q.id));
     if (pool.length === 0) return null;
-    const unseen = pool.filter((q) => !recentIds.has(q.id));
-    return pickRandom(unseen.length > 0 ? unseen : pool);
+
+    const neverShown = pool.filter((q) => !lastShownAt.has(q.id));
+    if (neverShown.length > 0) return pickRandom(neverShown);
+
+    // This child has now seen every active question in this bucket at
+    // least once - a repeat is unavoidable, so pick from the
+    // least-recently-shown fifth of the pool instead of uniformly at
+    // random, to keep whatever just got repeated from coming right back.
+    const sorted = [...pool].sort((a, b) => (lastShownAt.get(a.id) ?? 0) - (lastShownAt.get(b.id) ?? 0));
+    const staleSliceSize = Math.max(1, Math.ceil(sorted.length * 0.2));
+    return pickRandom(sorted.slice(0, staleSliceSize));
   }
 
   const drafts: RoundQuestionDraft[] = [];

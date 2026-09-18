@@ -173,6 +173,114 @@ function CategoryWeightsEditor({ childId }: { childId: string }) {
   );
 }
 
+function TimerEditor({ childId }: { childId: string }) {
+  const [answerSeconds, setAnswerSeconds] = useState<number | null>(null);
+  const [levelDefaultSeconds, setLevelDefaultSeconds] = useState<number | null>(null);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function load() {
+    const res = await fetch(`/api/admin/children/${childId}/timer`);
+    if (res.ok) {
+      const data = await res.json();
+      setAnswerSeconds(data.answerSeconds);
+      setLevelDefaultSeconds(data.levelDefaultSeconds);
+      setDraft(String(data.answerSeconds ?? data.levelDefaultSeconds));
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [childId]);
+
+  async function save() {
+    const value = Number(draft);
+    if (!Number.isInteger(value) || value < 10 || value > 300) {
+      setMessage("Enter a whole number of seconds between 10 and 300.");
+      return;
+    }
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/children/${childId}/timer`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answerSeconds: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error ?? "Could not save.");
+        return;
+      }
+      setAnswerSeconds(data.answerSeconds);
+      setMessage("Saved!");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clearOverride() {
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/children/${childId}/timer`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error ?? "Could not reset.");
+        return;
+      }
+      setAnswerSeconds(data.answerSeconds);
+      setDraft(String(data.levelDefaultSeconds));
+      setMessage("Back to the level default.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (levelDefaultSeconds === null) return null;
+
+  return (
+    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+      <h2 className="font-bold">⏱ Per-question timer</h2>
+      <p className="mt-1 text-xs text-slate-500">
+        How many seconds this child gets to answer each question. Level default is{" "}
+        {levelDefaultSeconds}s
+        {answerSeconds !== null ? ` - currently overridden to ${answerSeconds}s.` : " - no override set."}
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <input
+          type="number"
+          min={10}
+          max={300}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          className="w-24 rounded-xl border border-slate-200 p-2 text-center"
+        />
+        <span className="text-sm text-slate-500">seconds</span>
+        <button
+          onClick={save}
+          disabled={saving}
+          className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {saving ? "…" : answerSeconds !== null ? "Update" : "Add override"}
+        </button>
+        {answerSeconds !== null && (
+          <button
+            onClick={clearOverride}
+            disabled={saving}
+            className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-rose-600 ring-1 ring-rose-200 disabled:opacity-50"
+          >
+            Delete override
+          </button>
+        )}
+        {message && <p className="text-sm text-brand-700">{message}</p>}
+      </div>
+    </section>
+  );
+}
+
 function ResetActivityButton({ childId, onDone }: { childId: string; onDone: () => void }) {
   const [confirming, setConfirming] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -295,6 +403,7 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
       </header>
 
       {isAdmin && <CategoryWeightsEditor childId={childId} />}
+      {isAdmin && <TimerEditor childId={childId} />}
       {isAdmin && <ResetActivityButton childId={childId} onDone={refreshLog} />}
 
       <div className="flex gap-2">

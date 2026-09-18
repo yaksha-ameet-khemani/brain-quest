@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAutoRefresh } from "@/components/AutoRefresh";
-import type { Level } from "@/lib/config";
+import { EXPLANATION_MIN_READ_SECONDS, type Level } from "@/lib/config";
 import { fireSmallConfetti, fireRoundConfetti, firePerfectConfetti } from "@/lib/confetti";
 import { playCorrectSound, playWrongSound, playPerfectSound, playRoundDoneSound } from "@/lib/sound";
 import SoundToggle from "@/components/SoundToggle";
@@ -58,6 +58,7 @@ export default function QuizPage() {
 
 function QuizPageInner() {
   useAutoRefresh();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const requestedLevel = searchParams.get("level");
   const reviewMode = searchParams.get("mode") === "review";
@@ -168,6 +169,11 @@ function QuizPageInner() {
       }
       setResult(data);
       setPhase("feedback");
+      // Reuses the exact same countdown the question phase just used (one
+      // timer on screen at a time, never two) to force a minimum read of
+      // the explanation before "Next question" unlocks - see
+      // EXPLANATION_MIN_READ_SECONDS for why.
+      startTimer(EXPLANATION_MIN_READ_SECONDS);
       if (data.isCorrect) {
         fireSmallConfetti();
         playCorrectSound();
@@ -183,7 +189,8 @@ function QuizPageInner() {
   }
 
   async function nextQuestion() {
-    if (!round || !question) return;
+    if (!round || !question || secondsLeft > 0) return;
+    if (timerRef.current) clearInterval(timerRef.current);
     if (result?.roundComplete) {
       setPhase("done");
       return;
@@ -207,6 +214,16 @@ function QuizPageInner() {
       setError("Network error loading the next question.");
       setPhase("error");
     }
+  }
+
+  // Plain <Link> navigation away from this "round just finished" screen was
+  // occasionally landing on a dashboard still showing the pre-round points
+  // balance/rounds-left until a manual reload - router.refresh() right after
+  // the push forces that destination's server data to be refetched instead
+  // of reusing whatever was last cached for it.
+  function goTo(href: string) {
+    router.push(href);
+    router.refresh();
   }
 
   if (phase === "loading") {
@@ -245,12 +262,18 @@ function QuizPageInner() {
         )}
         <p className="text-4xl font-extrabold text-brand-600">{result.newBalance} pts</p>
         <div className="mt-4 flex gap-3">
-          <Link href="/dashboard" className="rounded-full bg-white px-6 py-3 font-medium shadow-sm ring-1 ring-slate-100">
+          <button
+            onClick={() => goTo("/dashboard")}
+            className="rounded-full bg-white px-6 py-3 font-medium shadow-sm ring-1 ring-slate-100"
+          >
             Dashboard
-          </Link>
-          <Link href="/rewards" className="rounded-full bg-brand-500 px-6 py-3 font-medium text-white">
+          </button>
+          <button
+            onClick={() => goTo("/rewards")}
+            className="rounded-full bg-brand-500 px-6 py-3 font-medium text-white"
+          >
             View rewards
-          </Link>
+          </button>
         </div>
       </main>
     );
@@ -276,6 +299,7 @@ function QuizPageInner() {
               +{result.pointsAwarded} points{result.streak >= 3 ? " 🔥 streak bonus!" : ""}
             </p>
           )}
+          <p className="mt-4 text-sm font-medium text-slate-700">{question.questionText}</p>
           <p className="mt-3 text-sm text-slate-600">
             Correct answer: <span className="font-semibold">{question.options[result.correctIndex]}</span>
           </p>
@@ -283,9 +307,14 @@ function QuizPageInner() {
         </div>
         <button
           onClick={nextQuestion}
-          className="rounded-2xl bg-brand-500 p-5 text-lg font-bold text-white shadow-sm active:bg-brand-600"
+          disabled={secondsLeft > 0}
+          className="rounded-2xl bg-brand-500 p-5 text-lg font-bold text-white shadow-sm active:bg-brand-600 disabled:opacity-60"
         >
-          {result.roundComplete ? "See results" : "Next question →"}
+          {secondsLeft > 0
+            ? `📖 Read the explanation… ${secondsLeft}s`
+            : result.roundComplete
+              ? "See results"
+              : "Next question →"}
         </button>
       </main>
     );

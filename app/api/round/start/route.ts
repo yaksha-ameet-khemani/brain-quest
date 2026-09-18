@@ -7,7 +7,13 @@ import { todayRangeUtc } from "@/lib/timezone";
 import { getLevelProgress } from "@/lib/levelProgress";
 import { getReviewProgress } from "@/lib/reviewProgress";
 import { getCheckupProgress } from "@/lib/checkupProgress";
-import { BONUS_ROUNDS_PER_DAY, LEVELS, MAX_ROUNDS_PER_DAY, QUESTIONS_PER_ROUND, type Level } from "@/lib/config";
+import {
+  BONUS_ROUNDS_PER_DAY,
+  MAX_ROUNDS_PER_DAY,
+  QUESTIONS_PER_ROUND,
+  effectiveAnswerSeconds,
+  type Level,
+} from "@/lib/config";
 import type { ChildRow, RoundQuestionRow, RoundRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -16,12 +22,13 @@ export async function POST(req: Request) {
   const kid = await requireKid();
   if (!kid) return NextResponse.json({ error: "Sign-in required." }, { status: 401 });
 
-  const child = await queryOne<Pick<ChildRow, "id" | "level">>(
-    "SELECT id, level FROM children WHERE id = $1",
+  const child = await queryOne<Pick<ChildRow, "id" | "level" | "answer_seconds">>(
+    "SELECT id, level, answer_seconds FROM children WHERE id = $1",
     [kid.childId]
   );
   if (!child) return NextResponse.json({ error: "Profile not found." }, { status: 404 });
   const baseLevel = child.level;
+  const answerSeconds = child.answer_seconds;
 
   // Resume an existing in-progress round rather than starting a new one -
   // so closing the browser mid-quiz doesn't lose progress or burn a daily slot.
@@ -32,7 +39,7 @@ export async function POST(req: Request) {
   );
 
   if (existingRound) {
-    const payload = await loadRoundForResume(existingRound.id);
+    const payload = await loadRoundForResume(existingRound.id, answerSeconds);
     if (payload) return NextResponse.json(payload);
     // Fell through: the in-progress round had no unanswered question left
     // (shouldn't normally happen - answer route completes it) - mark it
@@ -66,7 +73,7 @@ export async function POST(req: Request) {
       );
     }
 
-    return createRound(kid.childId, baseLevel, "review", drafts);
+    return createRound(kid.childId, baseLevel, "review", drafts, answerSeconds);
   }
 
   // Before any fresh standard round: if this child has recent wrong
@@ -77,7 +84,7 @@ export async function POST(req: Request) {
   if (checkupProgress.checkupAvailableToday) {
     const checkupDrafts = await buildCheckupQuestions(kid.childId);
     if (checkupDrafts.length > 0) {
-      return createRound(kid.childId, baseLevel, "checkup", checkupDrafts);
+      return createRound(kid.childId, baseLevel, "checkup", checkupDrafts, answerSeconds);
     }
   }
 
@@ -116,14 +123,15 @@ export async function POST(req: Request) {
   }
 
   const drafts = await buildRoundQuestions(level, kid.childId);
-  return createRound(kid.childId, level, "standard", drafts);
+  return createRound(kid.childId, level, "standard", drafts, answerSeconds);
 }
 
 async function createRound(
   childId: string,
   level: Level,
   kind: "standard" | "review" | "checkup",
-  drafts: Awaited<ReturnType<typeof buildRoundQuestions>>
+  drafts: Awaited<ReturnType<typeof buildRoundQuestions>>,
+  answerSecondsOverride: number | null
 ) {
   const created = await withTransaction(async (tx) => {
     const roundResult = await tx.query(
@@ -169,7 +177,7 @@ async function createRound(
     level,
     kind,
     totalQuestions: drafts.length,
-    timeLimitSeconds: LEVELS[level].perQuestionSeconds,
+    timeLimitSeconds: effectiveAnswerSeconds(level, answerSecondsOverride),
     question: sanitizeQuestion({
       position: 0,
       category: created.firstRow.category,
@@ -180,7 +188,7 @@ async function createRound(
   });
 }
 
-async function loadRoundForResume(roundId: string) {
+async function loadRoundForResume(roundId: string, answerSecondsOverride: number | null) {
   const round = await queryOne<Pick<RoundRow, "id" | "level" | "kind">>(
     "SELECT id, level, kind FROM rounds WHERE id = $1",
     [roundId]
@@ -224,7 +232,7 @@ async function loadRoundForResume(roundId: string) {
     level,
     kind: round.kind,
     totalQuestions,
-    timeLimitSeconds: LEVELS[level].perQuestionSeconds,
+    timeLimitSeconds: effectiveAnswerSeconds(level, answerSecondsOverride),
     question: sanitizeQuestion({
       position: nextQ.position,
       category: nextQ.category,

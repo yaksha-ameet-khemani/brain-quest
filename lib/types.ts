@@ -22,6 +22,7 @@ export interface ChildRow {
   photo_data_url: string | null;
   level: Level;
   pin_hash: string;
+  answer_seconds: number | null;
   created_at: string;
 }
 

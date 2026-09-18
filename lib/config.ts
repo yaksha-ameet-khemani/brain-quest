@@ -24,6 +24,20 @@ export const LEVELS: Record<Level, { label: string; perQuestionSeconds: number }
 };
 export const MAX_LEVEL: Level = 3;
 
+/** A child's actual per-question countdown: the level default, unless an
+ * admin has set a per-child override (children.answer_seconds) - see
+ * app/api/admin/children/[childId]/timer/route.ts. */
+export function effectiveAnswerSeconds(level: Level, answerSecondsOverride: number | null | undefined): number {
+  return answerSecondsOverride ?? LEVELS[level].perQuestionSeconds;
+}
+
+// Minimum time a kid must stay on the "here's the explanation" screen before
+// the Next button unlocks - a forced reading beat so a round can't be
+// blitzed through without ever looking at why an answer was right or wrong.
+// Same for every kid/level on purpose: it's a floor on attention, not a
+// per-child difficulty knob (that's answer_seconds above).
+export const EXPLANATION_MIN_READ_SECONDS = 6;
+
 /** The level directly above `level`, or null if it's already the top
  * (currently always the case for level 2 - there's no level 3 content yet).
  * Adding a new top level later is: bump the Level type/MAX_LEVEL, add its

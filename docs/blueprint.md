@@ -778,3 +778,86 @@ homepage-wide list.
   only their own correct relative time ("5h ago", "2h ago") computed from
   their real `child_logins` row - not the other child's, and not a list of
   both at once.
+
+**v20 update - explanation screen + forced read timer, no-repeat questions,
+per-child timer override, post-quiz dashboard refresh:** a bundle of four
+issues the family reported after actually using v14-v19 for real.
+
+- **Explanation screen now shows the question, not just the answer.** The
+  feedback card in `app/quiz/page.tsx` previously showed only "Correct
+  answer: X" and the explanation text - a kid (or a parent checking the
+  question log later in the session) had no way to see which question that
+  explanation was even answering without scrolling back. It now also shows
+  `question.questionText` in that same card.
+- **A forced-read countdown on the explanation screen**, so "Next question"
+  can't be tapped through instantly. Reuses the exact same countdown
+  mechanism (and the same `timerRef`/`secondsLeft` state) the question
+  phase just used for its own answer-time countdown - never two timers
+  running at once, just one that's relabeled depending on phase. Length is
+  `EXPLANATION_MIN_READ_SECONDS` (`lib/config.ts`, currently 6s) - fixed for
+  every child/level, since this is a floor on attention, not a per-child
+  difficulty knob (that's the timer override below). The button shows
+  "📖 Read the explanation… Ns" while locked, and `nextQuestion()` itself
+  also refuses to advance while `secondsLeft > 0` as a second guard, not
+  just the disabled button.
+- **Fixed a real repeat-question bug**, confirmed against the live
+  database before touching any code: `lib/buildRound.ts`'s
+  `buildRoundQuestions()` used to only look at a child's **last 30** bank
+  question shows (`ORDER BY shown_at DESC LIMIT 30`) to decide what counts
+  as "recently seen" and should be avoided. A single busy session (several
+  standard rounds plus a review and a checkup back to back - which is
+  exactly what happened when the family tested this) blows through 30 bank
+  picks well within an hour, so a question shown at the start of that
+  session could resurface by the end of it. Confirmed two real instances of
+  this in Banku's actual round history (same question re-served roughly a
+  day apart, `a7dc2f1d…` "How many right angles does a rectangle have?" and
+  `7b5d0cbe…` "What has many teeth but cannot bite?") before writing the
+  fix. Replaced the fixed 30-row window with the child's **entire** bank
+  history (one `GROUP BY question_id` query, `MAX(shown_at)` per id, no
+  `LIMIT`): a question is now only eligible to repeat once literally every
+  other active question in its (level, category) bucket has been shown to
+  that child at least once, and even then the least-recently-shown fifth of
+  the bucket is preferred over a uniform-random pick, so whatever just
+  repeated can't immediately repeat again. `buildReviewQuestions()` is
+  untouched on purpose - replaying the most recent wrong answer is the
+  intended spaced-repetition behavior there, not a bug. Re-verified the
+  fix against Banku's real data afterward: both previously-repeated
+  question ids are now correctly tracked as "already shown," and each
+  bank bucket at her level still has 60+ questions she's never seen at all,
+  which the new logic will always prefer first.
+- **Admin can now add/update/delete a per-child answer timer.** New
+  nullable `children.answer_seconds` column (`db/migrations/
+  011_child_timer_override.sql`, 10-300 range, null = "use the level
+  default"), a new admin-only `GET`/`PUT`/`DELETE`
+  `/api/admin/children/[childId]/timer` route mirroring the existing
+  per-child category-weights route's shape, and a matching editor on the
+  child detail page (`components/ChildLog.tsx`, next to the priorities
+  editor) admin already sees there. `lib/config.ts`'s new
+  `effectiveAnswerSeconds(level, override)` is the single place this gets
+  resolved, called from both round-start code paths (fresh round and
+  resume) and from the answer route's server-side timeout check, so the
+  override can't be bypassed by hitting the API directly with a stale
+  client-computed time limit.
+- **Fixed the dashboard not reflecting a just-finished round's points
+  without a manual reload.** The round-complete screen's "Dashboard" and
+  "View rewards" links were plain `<Link>`s; the kid dashboard
+  (`app/dashboard/page.tsx`) is a server component reading the live points
+  balance and rounds-left count on every request. Replaced both links with
+  buttons that call `router.push(href)` immediately followed by
+  `router.refresh()`, which forces that destination's server data to be
+  refetched instead of possibly reusing anything cached for it - a small,
+  defensive fix that costs nothing and directly targets the "just came
+  from a round, balance/rounds-left look stale" complaint regardless of
+  which layer of caching was actually responsible.
+- Verified end-to-end against the real database rather than reasoning
+  about the code alone: dry-ran the migration in a rolled-back transaction
+  before applying it for real, then forged both an admin session cookie
+  and a kid session cookie (see `[[thorough-testing-approach]]`'s HMAC
+  cookie-forging technique) to exercise the new timer route's full
+  GET/PUT/DELETE/validation/auth-rejection behavior, and used one
+  clearly-named throwaway child (`TimerTestKid-<timestamp>`, deleted
+  immediately after) to confirm a live `round/start` call - both the
+  fresh-round and resume-in-progress paths - actually returns the
+  overridden `timeLimitSeconds` instead of the level default, and that the
+  answer route's server-side timeout math uses it too. `npx tsc --noEmit`
+  and `eslint` both clean across every changed file.

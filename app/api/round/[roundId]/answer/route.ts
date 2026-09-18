@@ -3,16 +3,16 @@ import { query, queryOne, withTransaction } from "@/lib/db";
 import { requireKid } from "@/lib/requireKid";
 import { getBalance } from "@/lib/balance";
 import {
-  LEVELS,
   PERFECT_ROUND_BONUS,
   POINTS_PER_CORRECT,
   SPEED_BONUS_FRACTION_OF_TIME,
   SPEED_BONUS_POINTS,
   STREAK_MULTIPLIER,
   STREAK_THRESHOLD,
+  effectiveAnswerSeconds,
   type Level,
 } from "@/lib/config";
-import type { RoundQuestionRow, RoundRow } from "@/lib/types";
+import type { ChildRow, RoundQuestionRow, RoundRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -57,8 +57,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ roundId
   if (rq.answered_at) return NextResponse.json({ error: "Already answered." }, { status: 409 });
   if (!rq.shown_at) return NextResponse.json({ error: "Question was never served." }, { status: 409 });
 
+  const child = await queryOne<Pick<ChildRow, "answer_seconds">>(
+    "SELECT answer_seconds FROM children WHERE id = $1",
+    [kid.childId]
+  );
+
   const level = round.level as Level;
-  const timeLimitSeconds = LEVELS[level].perQuestionSeconds;
+  const timeLimitSeconds = effectiveAnswerSeconds(level, child?.answer_seconds ?? null);
   const elapsedSeconds = (Date.now() - new Date(rq.shown_at).getTime()) / 1000;
   const withinTime = elapsedSeconds <= timeLimitSeconds + TIMEOUT_GRACE_SECONDS;
 
