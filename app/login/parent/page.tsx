@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import Spinner from "@/components/Spinner";
 
 export default function ParentLoginPage() {
   const router = useRouter();
@@ -80,9 +81,10 @@ export default function ParentLoginPage() {
         <button
           type="submit"
           disabled={loading || !checkedSignupState}
-          className="rounded-xl bg-brand-500 p-3 font-semibold text-white disabled:opacity-50"
+          className="flex items-center justify-center gap-2 rounded-xl bg-brand-500 p-3 font-semibold text-white disabled:opacity-50"
         >
-          {loading ? "…" : mode === "signin" ? "Sign In" : "Create account"}
+          {loading && <Spinner />}
+          {loading ? (mode === "signin" ? "Signing in…" : "Creating…") : mode === "signin" ? "Sign In" : "Create account"}
         </button>
       </form>
 

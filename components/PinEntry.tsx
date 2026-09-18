@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Avatar from "@/components/Avatar";
+import Spinner from "@/components/Spinner";
 import { formatRelativeTime } from "@/lib/format";
 
 export default function PinEntry({
@@ -104,9 +105,9 @@ export default function PinEntry({
         <button
           onClick={submit}
           disabled={pin.length < 4 || loading}
-          className="h-16 w-16 rounded-2xl bg-brand-500 text-xl font-semibold text-white shadow-sm disabled:opacity-40 active:bg-brand-600"
+          className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-500 text-xl font-semibold text-white shadow-sm disabled:opacity-40 active:bg-brand-600"
         >
-          {loading ? "…" : "Go"}
+          {loading ? <Spinner /> : "Go"}
         </button>
       </div>
     </main>

@@ -894,3 +894,62 @@ issues the family reported after actually using v14-v19 for real.
   of exactly 0 is accepted, and a real `round/start` call (both fresh and
   resumed) returns both overridden values correctly - cleaned up
   immediately after. `npx tsc --noEmit` and `eslint` clean.
+
+**v21 update - loading feedback on every async button, and a real repeat-
+question bug in review rounds (found from actually watching Banku play):**
+
+- **Loaders.** Audited every `onClick` handler in the app for what happens
+  between tapping a button and its `fetch` resolving. Several had *zero*
+  visual change at all - `ParentDashboard`'s Approve/Deny/Mark given/Remove
+  buttons were `disabled` while busy but had no `disabled:opacity-*` class
+  and no text/icon change, so a parent on a slow connection had no way to
+  tell a tap had registered; `QuestionBank`/`RewardCatalog`'s Archive/Restore
+  buttons had no busy state whatsoever; `KidLogoutButton` had none either.
+  Added `components/Spinner.tsx` (a small inline animated SVG) and wired it
+  into every async button across the app - the ones with nothing before,
+  plus upgrading the ones that only swapped their label to a bare `"…"`
+  (login/signup, PIN entry, reward redemption, category weights, timer
+  overrides, reset-activity, add child/parent, run backup, sign out) to
+  spinner + a clearer in-progress label. The quiz page's answer options now
+  show a spinner on the specific option that was tapped while its answer is
+  being graded, and the full-page "Loading…" states got a spinner too.
+- **Real repeat-question bug in review rounds - found by directly watching
+  a family member's actual play, not synthetic testing.** The user reported
+  Banku got the exact same 5 questions in what looked like "yesterday's
+  wrongly-answered questions" - pulled his real round history from
+  production and confirmed it precisely: round `8acdf6a6` (a `review` round
+  on 2026-09-18) served the identical 5 questions, in the identical order,
+  that round `d11b5705`/`7f04a758`/`88390c29` (standard rounds the day
+  before) had marked wrong. This wasn't the v20 "avoid recently-shown bank
+  questions" bug reappearing - it was `buildReviewQuestions()` working
+  exactly as originally designed: literally replaying the child's most
+  recently wrong bank question verbatim, on the documented reasoning that
+  "getting it right retires it, free spaced repetition." The user's real
+  observation overrides that original design decision: a kid can pattern-
+  match the specific question/answer they just saw minutes-to-a-day earlier
+  without ever re-deriving it, defeating the point of review as a learning
+  check - "we have to take care of this thing very very seriously."
+  `buildReviewQuestions()` now calls the exact same `pickSimilarBankQuestion()`
+  substitution `buildCheckupQuestions()` already used (same concept tag
+  preferred, falls back to same category, literal repeat only as an
+  absolute last resort if nothing else exists) - review and checkup now
+  behave identically in this respect, review just stays unscored. Known,
+  accepted tradeoff from this change, called out here rather than hidden:
+  "retirement" (getting a wrong question off the review list) used to
+  happen by re-answering the *exact* question_id correctly; since review
+  now always serves a *different* question_id, that per-question retirement
+  signal no longer fires the same way - a wrong item mostly ages out of
+  review by being outranked by newer mistakes in the "5 most recent wrong"
+  query instead. This is the same property `buildCheckupQuestions()` has
+  already lived with since v14, so it's not a new category of behavior, just
+  review adopting a pattern the app already ships elsewhere.
+- Verified the review fix against a throwaway child reproducing Banku's
+  exact scenario on a local server pointed at the real database: seeded a
+  "yesterday" standard round where 5 real level-1 bank questions (picked at
+  random from the actual bank) were marked wrong, then called the real
+  `POST /api/round/start` with `{mode: "review"}` through a forged kid
+  session and walked the full round via the real answer/next-question
+  routes - all 5 served questions had different text from all 5 seeded
+  wrong ones, while still drawn from the same categories. Cleaned up
+  immediately after. `npx tsc --noEmit` and `eslint` clean across every
+  changed file.

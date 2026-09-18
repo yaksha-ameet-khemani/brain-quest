@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useAutoRefresh } from "@/components/AutoRefresh";
+import Spinner from "@/components/Spinner";
 
 interface Reward {
   id: string;
@@ -29,6 +30,7 @@ export default function RewardCatalog() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   async function refresh() {
     const res = await fetch("/api/admin/rewards");
@@ -57,12 +59,17 @@ export default function RewardCatalog() {
   }
 
   async function toggleActive(r: Reward) {
-    const res = await fetch(`/api/admin/rewards/${r.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive: !r.isActive }),
-    });
-    if (res.ok) await refresh();
+    setTogglingId(r.id);
+    try {
+      const res = await fetch(`/api/admin/rewards/${r.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !r.isActive }),
+      });
+      if (res.ok) await refresh();
+    } finally {
+      setTogglingId(null);
+    }
   }
 
   async function submit(e: FormEvent) {
@@ -138,9 +145,10 @@ export default function RewardCatalog() {
             <button
               type="submit"
               disabled={saving}
-              className="rounded-xl bg-brand-500 px-4 py-3 font-semibold text-white disabled:opacity-50"
+              className="flex items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 font-semibold text-white disabled:opacity-50"
             >
-              {saving ? "…" : editingId ? "Save changes" : "Add reward"}
+              {saving && <Spinner />}
+              {saving ? "Saving…" : editingId ? "Save changes" : "Add reward"}
             </button>
             {editingId && (
               <button type="button" onClick={cancelEdit} className="rounded-xl bg-slate-100 px-4 py-3 font-semibold">
@@ -192,10 +200,12 @@ export default function RewardCatalog() {
                 </button>
                 <button
                   onClick={() => toggleActive(r)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                  disabled={togglingId === r.id}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${
                     r.isActive ? "bg-rose-100 text-rose-600" : "bg-emerald-100 text-emerald-600"
                   }`}
                 >
+                  {togglingId === r.id && <Spinner className="h-3 w-3" />}
                   {r.isActive ? "Archive" : "Restore"}
                 </button>
               </div>

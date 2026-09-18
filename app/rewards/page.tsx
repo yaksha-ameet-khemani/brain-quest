@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import AutoRefresh from "@/components/AutoRefresh";
+import Spinner from "@/components/Spinner";
 
 interface Reward {
   id: string;
@@ -100,9 +101,10 @@ export default function RewardsPage() {
               <button
                 onClick={() => redeem(r)}
                 disabled={!affordable || busyId === r.id}
-                className="rounded-full bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-200 disabled:text-slate-400"
+                className="flex items-center gap-1.5 rounded-full bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-200 disabled:text-slate-400"
               >
-                {busyId === r.id ? "…" : affordable ? "Request" : "Locked"}
+                {busyId === r.id && <Spinner className="h-3.5 w-3.5" />}
+                {busyId === r.id ? "Requesting…" : affordable ? "Request" : "Locked"}
               </button>
             </div>
           );

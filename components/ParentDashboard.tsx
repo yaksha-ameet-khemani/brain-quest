@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import Avatar from "@/components/Avatar";
+import Spinner from "@/components/Spinner";
 import { fileToResizedDataUrl, ImageTooLargeError } from "@/lib/imageResize";
 import { useAutoRefresh } from "@/components/AutoRefresh";
 import type { Level } from "@/lib/config";
@@ -66,6 +67,7 @@ export default function ParentDashboard({
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [backupRunning, setBackupRunning] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [backupResult, setBackupResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [newChild, setNewChild] = useState<{
@@ -117,9 +119,14 @@ export default function ParentDashboard({
   }, []);
 
   async function signOut() {
-    await fetch("/api/auth/parent-logout", { method: "POST" });
-    router.push("/");
-    router.refresh();
+    setSigningOut(true);
+    try {
+      await fetch("/api/auth/parent-logout", { method: "POST" });
+      router.push("/");
+      router.refresh();
+    } finally {
+      setSigningOut(false);
+    }
   }
 
   async function decide(id: string, action: "approve" | "deny" | "fulfill") {
@@ -253,7 +260,12 @@ export default function ParentDashboard({
               🎁 Rewards Catalog
             </Link>
           )}
-          <button onClick={signOut} className="whitespace-nowrap text-sm text-slate-500 underline">
+          <button
+            onClick={signOut}
+            disabled={signingOut}
+            className="flex items-center gap-1.5 whitespace-nowrap text-sm text-slate-500 underline disabled:opacity-50"
+          >
+            {signingOut && <Spinner className="h-3 w-3" />}
             Sign out
           </button>
         </div>
@@ -280,15 +292,17 @@ export default function ParentDashboard({
                 <button
                   disabled={busy === r.id}
                   onClick={() => decide(r.id, "approve")}
-                  className="rounded-full bg-emerald-500 px-3 py-2 text-sm font-semibold text-white"
+                  className="flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
                 >
+                  {busy === r.id && <Spinner />}
                   Approve
                 </button>
                 <button
                   disabled={busy === r.id}
                   onClick={() => decide(r.id, "deny")}
-                  className="rounded-full bg-rose-500 px-3 py-2 text-sm font-semibold text-white"
+                  className="flex items-center gap-1.5 rounded-full bg-rose-500 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
                 >
+                  {busy === r.id && <Spinner />}
                   Deny
                 </button>
               </div>
@@ -313,8 +327,9 @@ export default function ParentDashboard({
                   <button
                     disabled={busy === r.id}
                     onClick={() => decide(r.id, "fulfill")}
-                    className="shrink-0 rounded-full bg-amber-500 px-3 py-1.5 font-semibold text-white"
+                    className="flex shrink-0 items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 font-semibold text-white disabled:opacity-50"
                   >
+                    {busy === r.id && <Spinner />}
                     Mark given
                   </button>
                 </div>
@@ -419,8 +434,9 @@ export default function ParentDashboard({
             <button
               onClick={runBackupNow}
               disabled={backupRunning}
-              className="rounded-xl bg-slate-800 px-4 py-3 font-semibold text-white disabled:opacity-50"
+              className="flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-3 font-semibold text-white disabled:opacity-50"
             >
+              {backupRunning && <Spinner />}
               {backupRunning ? "Backing up…" : "Back up now"}
             </button>
             {backupResult && (
@@ -515,9 +531,10 @@ export default function ParentDashboard({
           <button
             type="submit"
             disabled={creating}
-            className="rounded-xl bg-brand-500 p-3 font-semibold text-white disabled:opacity-50"
+            className="flex items-center justify-center gap-2 rounded-xl bg-brand-500 p-3 font-semibold text-white disabled:opacity-50"
           >
-            {creating ? "…" : "Add child"}
+            {creating && <Spinner />}
+            {creating ? "Adding…" : "Add child"}
           </button>
         </form>
       </section>
@@ -543,8 +560,9 @@ export default function ParentDashboard({
                   <button
                     disabled={busy === p.id}
                     onClick={() => removeParent(p.id)}
-                    className="text-xs font-semibold text-rose-500 underline"
+                    className="flex items-center gap-1.5 text-xs font-semibold text-rose-500 underline disabled:opacity-50"
                   >
+                    {busy === p.id && <Spinner className="h-3 w-3" />}
                     Remove
                   </button>
                 )}
@@ -578,9 +596,10 @@ export default function ParentDashboard({
             <button
               type="submit"
               disabled={creatingParent}
-              className="rounded-xl bg-slate-800 p-3 font-semibold text-white disabled:opacity-50"
+              className="flex items-center justify-center gap-2 rounded-xl bg-slate-800 p-3 font-semibold text-white disabled:opacity-50"
             >
-              {creatingParent ? "…" : "Add parent"}
+              {creatingParent && <Spinner />}
+              {creatingParent ? "Adding…" : "Add parent"}
             </button>
           </form>
         </section>

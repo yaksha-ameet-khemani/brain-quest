@@ -8,6 +8,7 @@ import type { Level } from "@/lib/config";
 import { fireSmallConfetti, fireRoundConfetti, firePerfectConfetti } from "@/lib/confetti";
 import { playCorrectSound, playWrongSound, playPerfectSound, playRoundDoneSound } from "@/lib/sound";
 import SoundToggle from "@/components/SoundToggle";
+import Spinner from "@/components/Spinner";
 
 interface Question {
   position: number;
@@ -330,7 +331,7 @@ function QuizPageInner() {
 
       {round.kind === "review" && (
         <p className="rounded-xl bg-sky-50 px-3 py-2 text-center text-sm font-medium text-sky-700 ring-1 ring-sky-200">
-          🔁 Review round - practice only, no points this time
+          🔁 Review round - similar questions to ones you missed, practice only, no points this time
         </p>
       )}
 
@@ -364,9 +365,10 @@ function QuizPageInner() {
             key={i}
             disabled={submitting}
             onClick={() => submitAnswer(i)}
-            className="rounded-2xl bg-white p-4 text-left text-lg font-medium shadow-sm ring-1 ring-slate-100 active:bg-brand-50 disabled:opacity-60"
+            className="flex items-center justify-between gap-3 rounded-2xl bg-white p-4 text-left text-lg font-medium shadow-sm ring-1 ring-slate-100 active:bg-brand-50 disabled:opacity-60"
           >
             {opt}
+            {submitting && selected === i && <Spinner className="h-5 w-5 shrink-0 text-brand-500" />}
           </button>
         ))}
       </div>
@@ -388,5 +390,10 @@ function ProgressHeader({ position, total }: { position: number; total: number }
 }
 
 function CenteredMessage({ children }: { children: ReactNode }) {
-  return <main className="flex min-h-[60vh] flex-col items-center justify-center text-center">{children}</main>;
+  return (
+    <main className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
+      {children === "Loading…" && <Spinner className="h-8 w-8 text-brand-500" />}
+      {children}
+    </main>
+  );
 }

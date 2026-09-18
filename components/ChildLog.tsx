@@ -8,6 +8,7 @@ import Avatar from "@/components/Avatar";
 import { fileToResizedDataUrl, ImageTooLargeError } from "@/lib/imageResize";
 import { useAutoRefresh } from "@/components/AutoRefresh";
 import ChildReport from "@/components/ChildReport";
+import Spinner from "@/components/Spinner";
 
 interface LogEntry {
   roundId: string;
@@ -71,16 +72,18 @@ function ChildPhotoEditor({ child, onChanged }: { child: ChildInfo; onChanged: (
 
   return (
     <div className="flex items-center gap-2">
-      <label className="cursor-pointer rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
-        {processing ? "…" : child.photoDataUrl ? "Change photo" : "Add photo"}
+      <label className="flex cursor-pointer items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+        {processing && <Spinner className="h-3 w-3" />}
+        {processing ? "Uploading…" : child.photoDataUrl ? "Change photo" : "Add photo"}
         <input type="file" accept="image/*" className="hidden" disabled={processing} onChange={(e) => handleFile(e.target.files?.[0])} />
       </label>
       {child.photoDataUrl && (
         <button
           onClick={() => save(null)}
           disabled={processing}
-          className="text-xs font-semibold text-rose-500 underline"
+          className="flex items-center gap-1.5 text-xs font-semibold text-rose-500 underline disabled:opacity-50"
         >
+          {processing && <Spinner className="h-3 w-3" />}
           Remove
         </button>
       )}
@@ -163,9 +166,10 @@ function CategoryWeightsEditor({ childId }: { childId: string }) {
         <button
           onClick={save}
           disabled={saving}
-          className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {saving ? "…" : "Save priorities"}
+          {saving && <Spinner className="h-3.5 w-3.5" />}
+          {saving ? "Saving…" : "Save priorities"}
         </button>
         {message && <p className="text-sm text-brand-700">{message}</p>}
       </div>
@@ -273,16 +277,18 @@ function TimerField({
         <button
           onClick={save}
           disabled={saving}
-          className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {saving ? "…" : currentOverride !== null ? "Update" : "Add override"}
+          {saving && <Spinner className="h-3.5 w-3.5" />}
+          {saving ? "Saving…" : currentOverride !== null ? "Update" : "Add override"}
         </button>
         {currentOverride !== null && (
           <button
             onClick={clearOverride}
             disabled={saving}
-            className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-rose-600 ring-1 ring-rose-200 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-rose-600 ring-1 ring-rose-200 disabled:opacity-50"
           >
+            {saving && <Spinner className="h-3.5 w-3.5" />}
             Delete override
           </button>
         )}
@@ -376,9 +382,10 @@ function ResetActivityButton({ childId, onDone }: { childId: string; onDone: () 
           <button
             onClick={doReset}
             disabled={resetting}
-            className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            {resetting ? "…" : "Yes, reset everything"}
+            {resetting && <Spinner className="h-3.5 w-3.5" />}
+            {resetting ? "Resetting…" : "Yes, reset everything"}
           </button>
           <button
             onClick={() => setConfirming(false)}

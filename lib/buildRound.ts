@@ -180,15 +180,24 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
  * by this child was wrong, most-recently-missed first - for a "review round"
  * that's never scored (see lib/config.ts). Only bank questions qualify:
  * generated math is different numbers every time, so there's no fixed
- * question to "get right this time." A question the child answers correctly
- * on review naturally drops off next time, since this always looks at the
- * MOST RECENT attempt, not just the first mistake - free spaced repetition,
- * not additional bookkeeping. Returns an empty array if there's nothing to
- * review right now (caller should treat that as "review not available").
+ * question to "get right this time."
+ *
+ * Each one is swapped for a DIFFERENT question testing the same skill
+ * (pickSimilarBankQuestion - the same substitution buildCheckupQuestions
+ * uses below), never the literal question the child already saw. This used
+ * to serve the exact original question back verbatim ("free spaced
+ * repetition"), but that let a child who simply remembered the specific
+ * question/answer from last time sail through review without ever
+ * re-deriving it - confirmed against real production data (a child was
+ * served the identical 5 questions, same order, that a standard round had
+ * shown minutes-to-a-day earlier). Falls back to literally repeating the
+ * original only if there's truly nothing else on that skill to swap it for
+ * (same last-resort as checkup). Returns an empty array if there's nothing
+ * to review right now (caller should treat that as "review not available").
  */
 export async function buildReviewQuestions(childId: string): Promise<RoundQuestionDraft[]> {
   const rows = await query<QuestionRow>(
-    `SELECT q.id, q.category, q.question_text, q.options, q.correct_option_index, q.explanation
+    `SELECT q.id, q.level, q.category, q.question_text, q.options, q.correct_option_index, q.explanation, q.concept, q.is_active, q.created_at
      FROM (
        SELECT DISTINCT ON (rq.question_id) rq.question_id, rq.is_correct, rq.answered_at
        FROM round_questions rq
@@ -206,15 +215,27 @@ export async function buildReviewQuestions(childId: string): Promise<RoundQuesti
     [childId, MAX_REVIEW_QUESTIONS]
   );
 
-  return rows.map(toDraft);
+  const drafts: RoundQuestionDraft[] = [];
+  // Pre-seeded with every original wrong question's own id, not just
+  // substitutes picked so far - otherwise a substitute chosen for one item
+  // could coincide with another item still waiting in this same batch.
+  const usedIds = new Set<string>(rows.map((r) => r.id));
+  for (const row of rows) {
+    const substitute = await pickSimilarBankQuestion(row, usedIds);
+    const chosen = substitute ?? row;
+    usedIds.add(chosen.id);
+    drafts.push(toDraft(chosen));
+  }
+  return drafts;
 }
 
-/** Finds a bank question to stand in for `original` on a checkup - same
- * skill, but NOT the same question, since getting the literal question
- * right again would just be memorization. Prefers another active question
- * at the same level sharing `original`'s admin-set concept tag; falls back
- * to any other active question in the same category if there's no tagged
- * match (or no tag at all). Returns null if nothing else is available. */
+/** Finds a bank question to stand in for `original` on a checkup or review
+ * round - same skill, but NOT the same question, since getting the literal
+ * question right again would just be memorization/recall rather than real
+ * evidence of understanding. Prefers another active question at the same
+ * level sharing `original`'s admin-set concept tag; falls back to any other
+ * active question in the same category if there's no tagged match (or no
+ * tag at all). Returns null if nothing else is available. */
 async function pickSimilarBankQuestion(original: QuestionRow, excludeIds: Set<string>): Promise<QuestionRow | null> {
   if (original.concept) {
     const byConcept = await query<QuestionRow>(

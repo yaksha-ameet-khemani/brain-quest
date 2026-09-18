@@ -80,10 +80,12 @@ Open http://localhost:3000.
   unlocks 3 bonus rounds at the next level up, for that day - a repeatable
   daily stretch-goal, not a permanent level change. (A Level 3 child is
   already at the top, so this doesn't apply to them.)
-- A child can replay questions they most recently got wrong in a one-a-day
-  "review round" - pure practice, never scored and never counted against
-  the daily round limit. Getting one right on review retires it; getting it
-  wrong again keeps it coming back.
+- A child can practice the skills behind their most recent wrong answers in
+  a one-a-day "review round" - pure practice, never scored and never counted
+  against the daily round limit. Like the checkup below, it never replays
+  the literal question they got wrong, only a different one testing the
+  same skill - so getting it right this time means they actually re-derived
+  the answer, not that they remembered seeing this exact question before.
 - Before their first standard round each day, a child with recent wrong
   answers gets a mandatory "checkup" - a short, normally-scored round of
   DIFFERENT questions on the same skill (a different bank question tagged
@@ -104,6 +106,12 @@ Open http://localhost:3000.
   just used - so a round can't be blitzed through without the explanation
   ever being on screen long enough to read. Length is admin-configurable per
   child (see above); 6 seconds otherwise.
+- Every button that kicks off a network request (answering a question,
+  approving/denying a reward, archiving a question or reward, signing out,
+  running a backup, saving a timer or category priority, and more) shows a
+  spinner and disables itself the moment it's tapped, instead of sitting
+  there unchanged until the request finishes - a slow connection used to
+  look indistinguishable from a broken tap.
 
 **Visibility**
 - The homepage is just the child picker and a Parent Mode link - no activity
