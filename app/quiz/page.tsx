@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAutoRefresh } from "@/components/AutoRefresh";
-import { EXPLANATION_MIN_READ_SECONDS, type Level } from "@/lib/config";
+import type { Level } from "@/lib/config";
 import { fireSmallConfetti, fireRoundConfetti, firePerfectConfetti } from "@/lib/confetti";
 import { playCorrectSound, playWrongSound, playPerfectSound, playRoundDoneSound } from "@/lib/sound";
 import SoundToggle from "@/components/SoundToggle";
@@ -23,6 +23,7 @@ interface RoundStart {
   kind: "standard" | "review" | "checkup";
   totalQuestions: number;
   timeLimitSeconds: number;
+  explainSeconds: number;
   question: Question;
 }
 
@@ -171,9 +172,12 @@ function QuizPageInner() {
       setPhase("feedback");
       // Reuses the exact same countdown the question phase just used (one
       // timer on screen at a time, never two) to force a minimum read of
-      // the explanation before "Next question" unlocks - see
-      // EXPLANATION_MIN_READ_SECONDS for why.
-      startTimer(EXPLANATION_MIN_READ_SECONDS);
+      // the explanation before "Next question" unlocks. round.explainSeconds
+      // comes from the server (level default or an admin's per-child
+      // override - see lib/config.ts's effectiveExplainSeconds()); 0 means
+      // the button unlocks immediately, since startTimer(0) ticks straight
+      // to secondsLeft = 0.
+      startTimer(round.explainSeconds);
       if (data.isCorrect) {
         fireSmallConfetti();
         playCorrectSound();

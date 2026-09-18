@@ -64,10 +64,13 @@ Open http://localhost:3000.
 - Admin can set a per-child, per-category priority weight (e.g. give a kid
   more logic practice if that's their weak spot), which steers what shows
   up in that child's rounds.
-- Admin can also override a specific child's per-question timer (10-300s,
-  add/update/delete - deleting reverts to the level default) from the same
-  child detail page, for a kid who needs more or less time than their level
-  default gives everyone else.
+- Admin can also override two per-child timers (add/update/delete each
+  independently - deleting either reverts it to its default) from the same
+  child detail page: the per-question answer timer (10-300s, level default
+  otherwise) for a kid who needs more or less time than their level default
+  gives everyone else, and the explanation-screen forced-read timer (0-60s,
+  0 = no forced wait) for a kid who needs longer (or none at all) to
+  actually read why an answer was right or wrong.
 - A bank question a child has already been shown never repeats until every
   other active question in that (level, category) bucket has been shown at
   least once too - tracked across their *entire* history, not just a recent
@@ -99,7 +102,8 @@ Open http://localhost:3000.
   and the "Next question" button stays locked behind a short forced-read
   countdown - the same one-timer-at-a-time countdown the question itself
   just used - so a round can't be blitzed through without the explanation
-  ever being on screen long enough to read.
+  ever being on screen long enough to read. Length is admin-configurable per
+  child (see above); 6 seconds otherwise.
 
 **Visibility**
 - The homepage is just the child picker and a Parent Mode link - no activity

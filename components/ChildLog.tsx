@@ -173,32 +173,42 @@ function CategoryWeightsEditor({ childId }: { childId: string }) {
   );
 }
 
-function TimerEditor({ childId }: { childId: string }) {
-  const [answerSeconds, setAnswerSeconds] = useState<number | null>(null);
-  const [levelDefaultSeconds, setLevelDefaultSeconds] = useState<number | null>(null);
-  const [draft, setDraft] = useState("");
+interface TimerData {
+  answerSeconds: number | null;
+  levelDefaultSeconds: number;
+  explainSeconds: number | null;
+  explainDefaultSeconds: number;
+}
+
+function TimerField({
+  childId,
+  field,
+  label,
+  hint,
+  min,
+  max,
+  currentOverride,
+  defaultValue,
+  onChanged,
+}: {
+  childId: string;
+  field: "answerSeconds" | "explainSeconds";
+  label: string;
+  hint: string;
+  min: number;
+  max: number;
+  currentOverride: number | null;
+  defaultValue: number;
+  onChanged: (data: TimerData) => void;
+}) {
+  const [draft, setDraft] = useState(String(currentOverride ?? defaultValue));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  async function load() {
-    const res = await fetch(`/api/admin/children/${childId}/timer`);
-    if (res.ok) {
-      const data = await res.json();
-      setAnswerSeconds(data.answerSeconds);
-      setLevelDefaultSeconds(data.levelDefaultSeconds);
-      setDraft(String(data.answerSeconds ?? data.levelDefaultSeconds));
-    }
-  }
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childId]);
-
   async function save() {
     const value = Number(draft);
-    if (!Number.isInteger(value) || value < 10 || value > 300) {
-      setMessage("Enter a whole number of seconds between 10 and 300.");
+    if (!Number.isInteger(value) || value < min || value > max) {
+      setMessage(`Enter a whole number of seconds between ${min} and ${max}.`);
       return;
     }
     setSaving(true);
@@ -207,14 +217,14 @@ function TimerEditor({ childId }: { childId: string }) {
       const res = await fetch(`/api/admin/children/${childId}/timer`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answerSeconds: value }),
+        body: JSON.stringify({ [field]: value }),
       });
       const data = await res.json();
       if (!res.ok) {
         setMessage(data.error ?? "Could not save.");
         return;
       }
-      setAnswerSeconds(data.answerSeconds);
+      onChanged(data);
       setMessage("Saved!");
     } finally {
       setSaving(false);
@@ -225,35 +235,36 @@ function TimerEditor({ childId }: { childId: string }) {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch(`/api/admin/children/${childId}/timer`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/children/${childId}/timer`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field }),
+      });
       const data = await res.json();
       if (!res.ok) {
         setMessage(data.error ?? "Could not reset.");
         return;
       }
-      setAnswerSeconds(data.answerSeconds);
-      setDraft(String(data.levelDefaultSeconds));
-      setMessage("Back to the level default.");
+      onChanged(data);
+      setDraft(String(defaultValue));
+      setMessage("Back to the default.");
     } finally {
       setSaving(false);
     }
   }
 
-  if (levelDefaultSeconds === null) return null;
-
   return (
-    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
-      <h2 className="font-bold">⏱ Per-question timer</h2>
-      <p className="mt-1 text-xs text-slate-500">
-        How many seconds this child gets to answer each question. Level default is{" "}
-        {levelDefaultSeconds}s
-        {answerSeconds !== null ? ` - currently overridden to ${answerSeconds}s.` : " - no override set."}
+    <div>
+      <p className="text-sm font-semibold">{label}</p>
+      <p className="mt-0.5 text-xs text-slate-500">
+        {hint} Default is {defaultValue}s
+        {currentOverride !== null ? ` - currently overridden to ${currentOverride}s.` : " - no override set."}
       </p>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
+      <div className="mt-2 flex flex-wrap items-center gap-3">
         <input
           type="number"
-          min={10}
-          max={300}
+          min={min}
+          max={max}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           className="w-24 rounded-xl border border-slate-200 p-2 text-center"
@@ -264,9 +275,9 @@ function TimerEditor({ childId }: { childId: string }) {
           disabled={saving}
           className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {saving ? "…" : answerSeconds !== null ? "Update" : "Add override"}
+          {saving ? "…" : currentOverride !== null ? "Update" : "Add override"}
         </button>
-        {answerSeconds !== null && (
+        {currentOverride !== null && (
           <button
             onClick={clearOverride}
             disabled={saving}
@@ -277,6 +288,47 @@ function TimerEditor({ childId }: { childId: string }) {
         )}
         {message && <p className="text-sm text-brand-700">{message}</p>}
       </div>
+    </div>
+  );
+}
+
+function TimerEditor({ childId }: { childId: string }) {
+  const [data, setData] = useState<TimerData | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch(`/api/admin/children/${childId}/timer`);
+      if (res.ok) setData(await res.json());
+    })();
+  }, [childId]);
+
+  if (!data) return null;
+
+  return (
+    <section className="grid gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+      <h2 className="font-bold">⏱ Timers</h2>
+      <TimerField
+        childId={childId}
+        field="answerSeconds"
+        label="Per-question answer timer"
+        hint="How many seconds this child gets to answer each question."
+        min={10}
+        max={300}
+        currentOverride={data.answerSeconds}
+        defaultValue={data.levelDefaultSeconds}
+        onChanged={setData}
+      />
+      <TimerField
+        childId={childId}
+        field="explainSeconds"
+        label="Explanation read timer"
+        hint="How many seconds the 'Next question' button stays locked on the explanation screen (0 = no forced wait)."
+        min={0}
+        max={60}
+        currentOverride={data.explainSeconds}
+        defaultValue={data.explainDefaultSeconds}
+        onChanged={setData}
+      />
     </section>
   );
 }

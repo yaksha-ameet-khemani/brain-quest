@@ -54,6 +54,7 @@ create table children (
   level smallint not null check (level in (1, 2, 3)), -- 1 = younger, 2 = older, 3 = most advanced - not tied to a school grade number
   pin_hash text not null,
   answer_seconds smallint check (answer_seconds is null or answer_seconds between 10 and 300), -- admin override of seconds-per-question; null = use LEVELS[level].perQuestionSeconds
+  explain_seconds smallint check (explain_seconds is null or explain_seconds between 0 and 60), -- admin override of the forced explanation-read countdown; null = use EXPLANATION_MIN_READ_SECONDS, 0 = no forced wait
   created_at timestamptz not null default now()
 );
 

@@ -861,3 +861,36 @@ issues the family reported after actually using v14-v19 for real.
   overridden `timeLimitSeconds` instead of the level default, and that the
   answer route's server-side timeout math uses it too. `npx tsc --noEmit`
   and `eslint` both clean across every changed file.
+- Same day, follow-up: the v20 explanation-read countdown had shipped as a
+  fixed 6s for every child with no admin control at all - the user asked
+  for the same "add/update/delete per kid" treatment already given to the
+  answer timer. Rather than bolt on a separate feature, extended the
+  existing per-child timer machinery to a second, independent field:
+  `children.explain_seconds` (`db/migrations/012_child_explain_timer.sql`,
+  0-60 range, 0 meaning "no forced wait at all" - allowed on purpose so
+  admin can fully disable it for a specific kid, unlike the answer timer
+  which has no such escape hatch since a question always needs *some* time
+  limit). `lib/config.ts` gained `effectiveExplainSeconds()` alongside the
+  existing `effectiveAnswerSeconds()`. The admin route
+  (`/api/admin/children/[childId]/timer`) now handles both fields under one
+  GET/PUT/DELETE surface: PUT accepts either or both of `answerSeconds`/
+  `explainSeconds` in the same body and updates only what's present (same
+  pattern as the category-weights route), DELETE takes a required
+  `{ field }` body naming exactly which override to clear, so clearing one
+  timer can never accidentally clear the other. `round/start`'s response
+  now includes `explainSeconds` (resolved server-side, same as
+  `timeLimitSeconds` already was) instead of the client importing a fixed
+  constant, so `app/quiz/page.tsx` just reads `round.explainSeconds` when
+  it starts the feedback-screen countdown - `EXPLANATION_MIN_READ_SECONDS`
+  in `lib/config.ts` is now purely the fallback default, not something the
+  client references directly at all anymore. `components/ChildLog.tsx`'s
+  timer section was refactored from one single-field editor into a shared
+  `TimerField` rendered twice (once per override), so the two controls stay
+  visually and behaviorally identical without duplicating the save/clear
+  logic. Verified with a 10-assertion live test against a throwaway child
+  on a local server pointed at the real database (forged admin + kid
+  cookies): both fields update/clear independently without touching each
+  other, out-of-range values on either field are rejected, `explainSeconds`
+  of exactly 0 is accepted, and a real `round/start` call (both fresh and
+  resumed) returns both overridden values correctly - cleaned up
+  immediately after. `npx tsc --noEmit` and `eslint` clean.

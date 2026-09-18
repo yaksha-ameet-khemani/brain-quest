@@ -31,12 +31,20 @@ export function effectiveAnswerSeconds(level: Level, answerSecondsOverride: numb
   return answerSecondsOverride ?? LEVELS[level].perQuestionSeconds;
 }
 
-// Minimum time a kid must stay on the "here's the explanation" screen before
-// the Next button unlocks - a forced reading beat so a round can't be
-// blitzed through without ever looking at why an answer was right or wrong.
-// Same for every kid/level on purpose: it's a floor on attention, not a
-// per-child difficulty knob (that's answer_seconds above).
+// Default minimum time a kid must stay on the "here's the explanation"
+// screen before the Next button unlocks - a forced reading beat so a round
+// can't be blitzed through without ever looking at why an answer was right
+// or wrong. Used unless an admin has set a per-child override
+// (children.explain_seconds) - see effectiveExplainSeconds() below.
 export const EXPLANATION_MIN_READ_SECONDS = 6;
+
+/** A child's actual forced-read countdown on the explanation screen: the
+ * default above, unless an admin has set a per-child override
+ * (children.explain_seconds, 0 meaning "no forced wait") - see
+ * app/api/admin/children/[childId]/timer/route.ts. */
+export function effectiveExplainSeconds(explainSecondsOverride: number | null | undefined): number {
+  return explainSecondsOverride ?? EXPLANATION_MIN_READ_SECONDS;
+}
 
 /** The level directly above `level`, or null if it's already the top
  * (currently always the case for level 2 - there's no level 3 content yet).

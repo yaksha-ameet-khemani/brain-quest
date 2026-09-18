@@ -23,6 +23,7 @@ export interface ChildRow {
   level: Level;
   pin_hash: string;
   answer_seconds: number | null;
+  explain_seconds: number | null;
   created_at: string;
 }
 
