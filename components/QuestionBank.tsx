@@ -31,6 +31,10 @@ const BLANK_FORM = {
   concept: "",
 };
 
+// The bank is a few thousand questions - drawing every card at once makes the
+// page slow (especially on a phone), so show a page at a time.
+const PAGE_SIZE = 100;
+
 export default function QuestionBank() {
   useAutoRefresh();
   const [questions, setQuestions] = useState<BankQuestion[]>([]);
@@ -38,6 +42,7 @@ export default function QuestionBank() {
   const [levelFilter, setLevelFilter] = useState<"all" | "1" | "2" | "3">("all");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "logic" | "riddle" | "spatial">("all");
   const [showInactive, setShowInactive] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const [form, setForm] = useState(BLANK_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -65,6 +70,10 @@ export default function QuestionBank() {
       }),
     [questions, levelFilter, categoryFilter, showInactive]
   );
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [levelFilter, categoryFilter, showInactive]);
 
   function startEdit(q: BankQuestion) {
     setEditingId(q.id);
@@ -274,7 +283,7 @@ export default function QuestionBank() {
         <p className="text-center text-sm text-slate-500">Loading…</p>
       ) : (
         <section className="grid gap-3">
-          {filtered.map((q) => (
+          {filtered.slice(0, visibleCount).map((q) => (
             <div
               key={q.id}
               className={`rounded-2xl p-4 shadow-sm ring-1 ${
@@ -338,6 +347,19 @@ export default function QuestionBank() {
             </div>
           ))}
           {filtered.length === 0 && <p className="text-center text-sm text-slate-500">No questions match this filter.</p>}
+          {filtered.length > visibleCount && (
+            <div className="flex flex-col items-center gap-2 pb-2">
+              <p className="text-xs text-slate-500">
+                Showing {visibleCount} of {filtered.length} questions
+              </p>
+              <button
+                onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+                className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-brand-600 ring-1 ring-slate-200"
+              >
+                Show {Math.min(PAGE_SIZE, filtered.length - visibleCount)} more
+              </button>
+            </div>
+          )}
         </section>
       )}
     </main>
