@@ -10,6 +10,8 @@ export interface ChildActivitySummary {
   photoDataUrl: string | null;
   level: Level;
   lastLogin: string | null;
+  /** Up to RECENT_LOGIN_COUNT most recent login instants, newest first. */
+  recentLogins: string[];
   totalAttempted: number;
   correct: number;
   wrong: number;
@@ -17,6 +19,8 @@ export interface ChildActivitySummary {
   currentDailyStreak: number;
   currentWeeklyStreak: number;
 }
+
+const RECENT_LOGIN_COUNT = 10;
 
 interface Row {
   id: string;
@@ -65,6 +69,23 @@ export async function getChildActivitySummary(): Promise<ChildActivitySummary[]>
     ORDER BY c.created_at ASC
   `);
 
+  const loginRows = await query<{ child_id: string; logged_in_at: string }>(
+    `SELECT child_id, logged_in_at FROM (
+       SELECT child_id, logged_in_at,
+              row_number() OVER (PARTITION BY child_id ORDER BY logged_in_at DESC) AS rn
+       FROM child_logins
+     ) t
+     WHERE rn <= $1
+     ORDER BY child_id, logged_in_at DESC`,
+    [RECENT_LOGIN_COUNT]
+  );
+  const loginsByChild = new Map<string, string[]>();
+  for (const l of loginRows) {
+    const list = loginsByChild.get(l.child_id) ?? [];
+    list.push(new Date(l.logged_in_at).toISOString());
+    loginsByChild.set(l.child_id, list);
+  }
+
   return Promise.all(
     rows.map(async (r) => {
       const streaks = await getStreaks(r.id);
@@ -75,6 +96,7 @@ export async function getChildActivitySummary(): Promise<ChildActivitySummary[]>
         photoDataUrl: r.photo_data_url,
         level: r.level,
         lastLogin: r.last_login,
+        recentLogins: loginsByChild.get(r.id) ?? [],
         totalAttempted: Number(r.total_attempted),
         correct: Number(r.correct),
         wrong: Number(r.wrong),

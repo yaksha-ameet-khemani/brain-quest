@@ -43,6 +43,7 @@ interface ActivitySummary {
   photoDataUrl: string | null;
   level: Level;
   lastLogin: string | null;
+  recentLogins: string[];
   totalAttempted: number;
   correct: number;
   wrong: number;
@@ -396,25 +397,46 @@ export default function ParentDashboard({
           </p>
           <div className="grid gap-2">
             {activity.map((a) => (
-              <div
-                key={a.id}
-                className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-white p-3 text-sm shadow-sm ring-1 ring-slate-100"
-              >
-                <span className="flex min-w-0 items-center gap-1.5 font-semibold">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center text-base">
-                    <Avatar photoDataUrl={a.photoDataUrl} avatar={a.avatar} name={a.name} />
+              <div key={a.id} className="rounded-xl bg-white p-3 text-sm shadow-sm ring-1 ring-slate-100">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <span className="flex min-w-0 items-center gap-1.5 font-semibold">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center text-base">
+                      <Avatar photoDataUrl={a.photoDataUrl} avatar={a.avatar} name={a.name} />
+                    </span>
+                    <span className="truncate">{a.name}</span>
                   </span>
-                  <span className="truncate">{a.name}</span>
-                </span>
-                <span className="shrink-0 text-xs text-slate-500">
-                  {a.lastLogin ? `Last played ${new Date(a.lastLogin).toLocaleString()}` : "Never logged in"}
-                  {" · "}
-                  {a.correct}/{a.totalAttempted} correct
-                  {" · "}
-                  {Math.round(a.totalTimeSeconds / 60)} min played
-                  {a.currentDailyStreak > 0 && <> · 🔥 {a.currentDailyStreak}d</>}
-                  {a.currentWeeklyStreak > 0 && <> · 🗓️ {a.currentWeeklyStreak}w</>}
-                </span>
+                  <span className="shrink-0 text-xs text-slate-500">
+                    {a.lastLogin ? `Last played ${new Date(a.lastLogin).toLocaleString()}` : "Never logged in"}
+                    {" · "}
+                    {a.correct}/{a.totalAttempted} correct
+                    {" · "}
+                    {Math.round(a.totalTimeSeconds / 60)} min played
+                    {a.currentDailyStreak > 0 && <> · 🔥 {a.currentDailyStreak}d</>}
+                    {a.currentWeeklyStreak > 0 && <> · 🗓️ {a.currentWeeklyStreak}w</>}
+                  </span>
+                </div>
+                {a.recentLogins.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs font-semibold text-brand-600">
+                      Last {a.recentLogins.length} login{a.recentLogins.length === 1 ? "" : "s"}
+                    </summary>
+                    <ol className="mt-1.5 grid gap-0.5 text-xs text-slate-600">
+                      {a.recentLogins.map((t, i) => (
+                        <li key={t + i}>
+                          {new Date(t).toLocaleString(undefined, {
+                            weekday: "short",
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })}
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                )}
               </div>
             ))}
             {activity.length === 0 && <p className="text-sm text-slate-500">No activity yet.</p>}
