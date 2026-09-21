@@ -83,6 +83,13 @@ export const MAX_REVIEW_QUESTIONS = 5;
 // understanding, it IS scored normally (not free practice like review).
 export const MAX_CHECKUP_QUESTIONS = 5;
 
+// The swap-in questions review and checkup rounds serve (see
+// lib/buildRound.ts's pickSimilarBankQuestion) skip anything the child was
+// shown within this many hours - kids remember what they answered a day or
+// two ago, and a "different" question they already know isn't a real recheck.
+// Rolling window, not calendar days, so there's no gap around midnight.
+export const RECENT_QUESTION_WINDOW_HOURS = 48;
+
 // Per-child report tunables (lib/childReport.ts) - how far back each section
 // looks, and how many attempts something needs before it's called a
 // strength/weakness/trend at all, so one lucky or unlucky guess never skews

@@ -7,9 +7,11 @@ import {
   MAX_CHECKUP_QUESTIONS,
   MAX_REVIEW_QUESTIONS,
   QUESTIONS_PER_ROUND,
+  RECENT_QUESTION_WINDOW_HOURS,
   type BankCategory,
   type Level,
 } from "@/lib/config";
+import { pickLeastRecentlySeen, pickNotRecentlySeen } from "@/lib/recentQuestions";
 import type { QuestionRow } from "@/lib/types";
 
 export interface RoundQuestionDraft {
@@ -221,7 +223,7 @@ export async function buildReviewQuestions(childId: string): Promise<RoundQuesti
   // could coincide with another item still waiting in this same batch.
   const usedIds = new Set<string>(rows.map((r) => r.id));
   for (const row of rows) {
-    const substitute = await pickSimilarBankQuestion(row, usedIds);
+    const substitute = await pickSimilarBankQuestion(row, usedIds, childId);
     const chosen = substitute ?? row;
     usedIds.add(chosen.id);
     drafts.push(toDraft(chosen));
@@ -235,16 +237,29 @@ export async function buildReviewQuestions(childId: string): Promise<RoundQuesti
  * evidence of understanding. Prefers another active question at the same
  * level sharing `original`'s admin-set concept tag; falls back to any other
  * active question in the same category if there's no tagged match (or no
- * tag at all). Returns null if nothing else is available. */
-async function pickSimilarBankQuestion(original: QuestionRow, excludeIds: Set<string>): Promise<QuestionRow | null> {
+ * tag at all). Returns null if nothing else is available.
+ *
+ * Never hands back a question this child was shown within the last
+ * RECENT_QUESTION_WINDOW_HOURS (any round kind): kids remember what they
+ * answered a day or two ago, so a "fresh" question they already know proves
+ * nothing. Never-shown questions are preferred over merely-old ones. This
+ * used to pick uniformly at random from the whole pool, which served a child
+ * a question they had answered correctly three minutes earlier. Only if
+ * EVERY candidate was shown inside the window does it fall back to the one
+ * shown longest ago. */
+async function pickSimilarBankQuestion(
+  original: QuestionRow,
+  excludeIds: Set<string>,
+  childId: string
+): Promise<QuestionRow | null> {
+  const pools: QuestionRow[][] = [];
   if (original.concept) {
     const byConcept = await query<QuestionRow>(
       `SELECT id, level, category, question_text, options, correct_option_index, explanation, concept, is_active, created_at
        FROM questions WHERE level = $1 AND concept = $2 AND is_active = true AND id != $3`,
       [original.level, original.concept, original.id]
     );
-    const pool = byConcept.filter((q) => !excludeIds.has(q.id));
-    if (pool.length > 0) return pickRandom(pool);
+    pools.push(byConcept.filter((q) => !excludeIds.has(q.id)));
   }
 
   const byCategory = await query<QuestionRow>(
@@ -252,8 +267,29 @@ async function pickSimilarBankQuestion(original: QuestionRow, excludeIds: Set<st
      FROM questions WHERE level = $1 AND category = $2 AND is_active = true AND id != $3`,
     [original.level, original.category, original.id]
   );
-  const pool = byCategory.filter((q) => !excludeIds.has(q.id));
-  return pool.length > 0 ? pickRandom(pool) : null;
+  const categoryPool = byCategory.filter((q) => !excludeIds.has(q.id));
+  pools.push(categoryPool);
+  if (pools.every((p) => p.length === 0)) return null;
+
+  const candidateIds = [...new Set(pools.flat().map((q) => q.id))];
+  const shown = await query<{ question_id: string; last_shown_at: string }>(
+    `SELECT rq.question_id, MAX(rq.shown_at) AS last_shown_at
+     FROM round_questions rq
+     JOIN rounds r ON r.id = rq.round_id
+     WHERE r.child_id = $1 AND rq.question_id = ANY($2::uuid[]) AND rq.shown_at IS NOT NULL
+     GROUP BY rq.question_id`,
+    [childId, candidateIds]
+  );
+  const lastShownAt = new Map(shown.map((r) => [r.question_id, new Date(r.last_shown_at).getTime()]));
+  const cutoffMs = Date.now() - RECENT_QUESTION_WINDOW_HOURS * 60 * 60 * 1000;
+
+  // Concept pool first, then the wider category pool - but only settle for a
+  // pool once it has something outside the recent-memory window.
+  for (const pool of pools) {
+    const fresh = pickNotRecentlySeen(pool, lastShownAt, cutoffMs, pickRandom);
+    if (fresh) return fresh;
+  }
+  return pickLeastRecentlySeen(pools.flat(), lastShownAt);
 }
 
 type CheckupWrongItem =
@@ -320,7 +356,7 @@ export async function buildCheckupQuestions(childId: string): Promise<RoundQuest
       drafts.push(generatedDraftByKey(item.level, item.templateKey));
       continue;
     }
-    const substitute = await pickSimilarBankQuestion(item.row, usedBankIds);
+    const substitute = await pickSimilarBankQuestion(item.row, usedBankIds, childId);
     if (substitute) {
       usedBankIds.add(substitute.id);
       drafts.push(toDraft(substitute));
