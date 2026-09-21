@@ -92,6 +92,67 @@ function ChildPhotoEditor({ child, onChanged }: { child: ChildInfo; onChanged: (
   );
 }
 
+function PinEditor({ childId }: { childId: string }) {
+  const [pin, setPin] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function save() {
+    if (!/^\d{4,6}$/.test(pin)) {
+      setMessage({ ok: false, text: "PIN must be 4-6 digits." });
+      return;
+    }
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/parent/children/${childId}/reset-pin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage({ ok: false, text: data.error ?? "Could not change PIN." });
+        return;
+      }
+      setPin("");
+      setMessage({ ok: true, text: "PIN changed - use the new one next time they log in." });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+      <h2 className="font-bold">🔑 Login PIN</h2>
+      <p className="mt-1 text-xs text-slate-500">
+        Set a new 4-6 digit PIN for this child. The current PIN can&apos;t be shown - it&apos;s stored scrambled.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <input
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          maxLength={6}
+          placeholder="New PIN"
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+          className="w-28 rounded-xl border border-slate-200 p-2 text-center"
+        />
+        <button
+          onClick={save}
+          disabled={saving || pin.length < 4}
+          className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {saving && <Spinner className="h-3.5 w-3.5" />}
+          {saving ? "Saving…" : "Change PIN"}
+        </button>
+        {message && <p className={`text-sm ${message.ok ? "text-brand-700" : "text-rose-600"}`}>{message.text}</p>}
+      </div>
+    </section>
+  );
+}
+
 const CATEGORY_LABEL: Record<string, string> = {
   math: "🔢 Math",
   logic: "🧩 Logic",
@@ -461,6 +522,7 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
         </div>
       </header>
 
+      <PinEditor childId={childId} />
       {isAdmin && <CategoryWeightsEditor childId={childId} />}
       {isAdmin && <TimerEditor childId={childId} />}
       {isAdmin && <ResetActivityButton childId={childId} onDone={refreshLog} />}
