@@ -3,6 +3,7 @@
 -- this when you actually mean to start over.
 drop table if exists redemptions cascade;
 drop table if exists rewards cascade;
+drop table if exists game_settings cascade;
 drop table if exists point_transactions cascade;
 drop table if exists round_questions cascade;
 drop table if exists rounds cascade;

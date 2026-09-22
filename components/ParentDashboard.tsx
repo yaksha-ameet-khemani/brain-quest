@@ -70,6 +70,8 @@ export default function ParentDashboard({
   const [backupRunning, setBackupRunning] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [backupResult, setBackupResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [negativeMarking, setNegativeMarking] = useState<boolean | null>(null);
+  const [savingNegativeMarking, setSavingNegativeMarking] = useState(false);
 
   const [newChild, setNewChild] = useState<{
     name: string;
@@ -102,16 +104,34 @@ export default function ParentDashboard({
   const [parentMessage, setParentMessage] = useState<string | null>(null);
 
   async function refresh() {
-    const [ov, rd, pa, ac] = await Promise.all([
+    const [ov, rd, pa, ac, gs] = await Promise.all([
       fetch("/api/parent/overview"),
       fetch("/api/parent/redemptions"),
       role === "admin" ? fetch("/api/admin/parents") : Promise.resolve(null),
       role === "admin" ? fetch("/api/admin/activity") : Promise.resolve(null),
+      role === "admin" ? fetch("/api/admin/settings") : Promise.resolve(null),
     ]);
     if (ov.ok) setOverview((await ov.json()).overview);
     if (rd.ok) setRedemptions((await rd.json()).redemptions);
     if (pa?.ok) setParents((await pa.json()).parents);
     if (ac?.ok) setActivity((await ac.json()).activity);
+    if (gs?.ok) setNegativeMarking((await gs.json()).negativeMarking);
+  }
+
+  async function toggleNegativeMarking() {
+    if (negativeMarking === null || savingNegativeMarking) return;
+    const next = !negativeMarking;
+    setSavingNegativeMarking(true);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ negativeMarking: next }),
+      });
+      if (res.ok) setNegativeMarking((await res.json()).negativeMarking);
+    } finally {
+      setSavingNegativeMarking(false);
+    }
   }
 
   useEffect(() => {
@@ -440,6 +460,31 @@ export default function ParentDashboard({
               </div>
             ))}
             {activity.length === 0 && <p className="text-sm text-slate-500">No activity yet.</p>}
+          </div>
+        </section>
+      )}
+
+      {role === "admin" && (
+        <section>
+          <h2 className="mb-3 text-lg font-bold">🎯 Game settings (admin only)</h2>
+          <div className="flex items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+            <div>
+              <p className="text-sm font-semibold">Negative marking</p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                A wrong answer docks half the points a correct one would have earned. Applies to
+                every child; never shown to them - they only ever see &quot;Not quite&quot;.
+              </p>
+            </div>
+            <button
+              onClick={toggleNegativeMarking}
+              disabled={negativeMarking === null || savingNegativeMarking}
+              className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold disabled:opacity-50 ${
+                negativeMarking ? "bg-brand-500 text-white" : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {savingNegativeMarking && <Spinner className="h-3.5 w-3.5" />}
+              {negativeMarking ? "On" : "Off"}
+            </button>
           </div>
         </section>
       )}

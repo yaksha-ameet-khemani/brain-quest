@@ -73,6 +73,7 @@ function QuizPageInner() {
   const [answerRevealed, setAnswerRevealed] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [paused, setPaused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const submittedRef = useRef(false);
 
@@ -129,13 +130,25 @@ function QuizPageInner() {
   }, [startTimer, requestedLevel, reviewMode]);
 
   // Auto-submit as a miss once the timer hits zero, so a kid who freezes up
-  // still sees the explanation instead of being stuck.
+  // still sees the explanation instead of being stuck. Skipped once paused -
+  // the countdown is frozen too, but just in case it lands on 0 right as the
+  // pause button is hit, this must not fire anyway.
   useEffect(() => {
-    if (phase === "question" && secondsLeft === 0 && !submittedRef.current) {
+    if (phase === "question" && !paused && secondsLeft === 0 && !submittedRef.current) {
       void submitAnswer(-1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsLeft, phase]);
+  }, [secondsLeft, phase, paused]);
+
+  // Stops the countdown for the current question and marks it so the answer
+  // never earns points even if correct - see app/api/round/[roundId]/answer
+  // /route.ts. A kid trades scoring for unlimited thinking time; the button
+  // says so up front rather than hiding the trade-off.
+  function pauseTimer() {
+    if (paused) return;
+    setPaused(true);
+    if (timerRef.current) clearInterval(timerRef.current);
+  }
 
   // On a wrong/timed-out answer, the correct option stays hidden behind a
   // "Show answer" tap so a kid can try to reason it out from the
@@ -174,7 +187,7 @@ function QuizPageInner() {
       const res = await fetch(`/api/round/${round.roundId}/answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ position: question.position, selectedIndex }),
+        body: JSON.stringify({ position: question.position, selectedIndex, paused }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -217,6 +230,7 @@ function QuizPageInner() {
     setPhase("loading");
     setResult(null);
     setSelected(null);
+    setPaused(false);
     submittedRef.current = false;
     try {
       const res = await fetch(`/api/round/${round.roundId}/question/${question.position + 1}`);
@@ -313,7 +327,7 @@ function QuizPageInner() {
           <p className="mt-2 text-lg font-bold">
             {result.isCorrect ? "Correct!" : result.timedOut ? "Time's up!" : "Not quite"}
           </p>
-          {result.isCorrect && round.kind !== "review" && (
+          {result.isCorrect && round.kind !== "review" && result.pointsAwarded > 0 && (
             <p className="mt-1 font-semibold text-brand-600">
               +{result.pointsAwarded} points{result.streak >= 3 ? " 🔥 streak bonus!" : ""}
             </p>
@@ -386,10 +400,14 @@ function QuizPageInner() {
           <SoundToggle />
           <span
             className={`rounded-full px-3 py-1 text-sm font-bold ${
-              secondsLeft <= 10 ? "bg-rose-100 text-rose-600" : "bg-brand-100 text-brand-700"
+              paused
+                ? "bg-slate-100 text-slate-500"
+                : secondsLeft <= 10
+                  ? "bg-rose-100 text-rose-600"
+                  : "bg-brand-100 text-brand-700"
             }`}
           >
-            ⏱ {secondsLeft}s
+            {paused ? "⏸ Paused" : `⏱ ${secondsLeft}s`}
           </span>
         </div>
       </div>
@@ -409,6 +427,19 @@ function QuizPageInner() {
           </button>
         ))}
       </div>
+
+      {paused ? (
+        <p className="text-center text-xs font-medium text-slate-400">
+          ⏸ Timer paused - take your time. This one won&apos;t earn points.
+        </p>
+      ) : (
+        <button
+          onClick={pauseTimer}
+          className="self-center rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-500 shadow-sm ring-1 ring-slate-200"
+        >
+          ⏸ Pause timer (no points this one)
+        </button>
+      )}
     </main>
   );
 }

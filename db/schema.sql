@@ -153,6 +153,7 @@ create table round_questions (
   selected_index smallint,
   is_correct boolean,
   points_awarded int not null default 0,
+  paused boolean not null default false, -- kid used the "pause timer" button on this one; see app/api/round/[roundId]/answer/route.ts
   unique (round_id, position)
 );
 
@@ -171,6 +172,17 @@ create table point_transactions (
   created_at timestamptz not null default now()
 );
 create index point_transactions_child_idx on point_transactions (child_id, created_at);
+
+-- ---------------------------------------------------------------------------
+-- Family-wide, admin-toggleable game settings - currently just whether a
+-- wrong answer docks a child half the points a correct one would have
+-- earned (silently - see lib/gameSettings.ts). Single-row table; the `id`
+-- check constraint (always true) guarantees at most one row ever exists.
+-- ---------------------------------------------------------------------------
+create table game_settings (
+  id boolean primary key default true check (id),
+  negative_marking boolean not null default false
+);
 
 -- ---------------------------------------------------------------------------
 -- Reward catalog - editable by parents via the parent dashboard, not hardcoded.

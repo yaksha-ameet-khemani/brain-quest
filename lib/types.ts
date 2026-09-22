@@ -81,6 +81,7 @@ export interface RoundQuestionRow {
   selected_index: number | null;
   is_correct: boolean | null;
   points_awarded: number;
+  paused: boolean;
 }
 
 export interface PointTransactionRow {
