@@ -468,7 +468,16 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
   const [log, setLog] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "correct" | "wrong">("all");
-  const [tab, setTab] = useState<"report" | "log">("report");
+  const [tab, setTab] = useState<"report" | "log" | "logins">("report");
+  const [logins, setLogins] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (tab !== "logins" || logins !== null) return;
+    (async () => {
+      const res = await fetch(`/api/admin/children/${childId}/logins`);
+      if (res.ok) setLogins((await res.json()).logins);
+    })();
+  }, [tab, logins, childId]);
 
   async function refreshLog() {
     const res = await fetch(`/api/parent/children/${childId}/log`);
@@ -528,7 +537,7 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
       {isAdmin && <ResetActivityButton childId={childId} onDone={refreshLog} />}
 
       <div className="flex gap-2">
-        {(["report", "log"] as const).map((t) => (
+        {(isAdmin ? (["report", "log", "logins"] as const) : (["report", "log"] as const)).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -536,13 +545,42 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
               tab === t ? "bg-brand-500 text-white" : "bg-white text-slate-500 ring-1 ring-slate-200"
             }`}
           >
-            {t === "report" ? "📊 Report" : "📋 Full log"}
+            {t === "report" ? "📊 Report" : t === "log" ? "📋 Full log" : "🕒 Last logins"}
           </button>
         ))}
       </div>
 
       {tab === "report" ? (
         <ChildReport childId={childId} />
+      ) : tab === "logins" ? (
+        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+          <h2 className="font-bold">🕒 Last {logins?.length ?? 10} logins</h2>
+          <p className="mt-1 text-xs text-slate-500">Exact date and time of this child&apos;s most recent sign-ins, newest first.</p>
+          {logins === null ? (
+            <p className="mt-3 text-sm text-slate-500">Loading…</p>
+          ) : logins.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-500">No logins yet.</p>
+          ) : (
+            <ol className="mt-3 grid gap-1.5 text-sm">
+              {logins.map((t, i) => (
+                <li key={t + i} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
+                  <span className="text-slate-400">#{i + 1}</span>
+                  <span className="font-medium">
+                    {new Date(t).toLocaleString(undefined, {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
       ) : (
         <>
           <section className="grid grid-cols-4 gap-2 text-center text-xs">
