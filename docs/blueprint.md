@@ -1024,3 +1024,60 @@ cookie; admin route 401 with a kid cookie; `?childId=<Lavin>` on the kid
 route still returns Melina's data; `/history` redirects to `/` when signed
 out. The admin history's current balance matches the ledger total for all
 four children. `tsc`, `eslint` and `npm run build` are clean.
+
+**v30 update - saved 10-day reports per child, admin-only:** after a
+one-off, hand-written 12-day analysis of Banku (questions answered, right/
+wrong, strong/weak categories), the user asked for reports like that to be
+saved for each child every 10 days, visible only to admin.
+- **Periods** are fixed back-to-back 10-day blocks counted from
+  `PERIOD_REPORT_ANCHOR` (2026-09-16, the family's first day of play) in
+  `lib/config.ts`, in APP_TIMEZONE, so all children's periods line up and a
+  report always covers the same dates however late it's opened.
+- **Saved snapshots, not recomputed.** New table `child_reports`
+  (`db/migrations/015_child_reports.sql`, unique per child + period, JSONB
+  `data`). `ensureSavedReports()` in `lib/periodReport.ts` builds and inserts
+  the report for every finished period a child is missing (skipping periods
+  that ended before the child was created); `ON CONFLICT DO NOTHING` makes
+  concurrent calls harmless. A saved report is never updated, so it keeps
+  showing what was true then, even if the child's level or the question
+  bank changes later. The period in progress is built live and never saved.
+- **No cron.** Saving happens lazily when an admin opens the tab. Nothing
+  is lost by waiting, because the underlying rounds/answers/ledger are kept
+  (only the admin's testing-only "reset activity" deletes them). This keeps
+  it $0 with no scheduler to configure.
+- **Reports are permanent - never deleted (user's explicit requirement).**
+  Enforced in the database itself, not just the app: a trigger on
+  `child_reports` rejects every DELETE, TRUNCATE and UPDATE. The one
+  exception is deleting a child: `child_id` is `ON DELETE SET NULL` (not
+  cascade), the trigger lets that one automatic unlink through (and only if
+  nothing else in the row changes), and `child_name` keeps a copy of who the
+  report was about. "Reset activity" deliberately leaves reports alone. The
+  table is also in the daily encrypted backup. Not covered: `DROP TABLE` by
+  the database owner (row triggers can't stop that), which nothing in the app
+  or its scripts ever does - `db/reset.sql` deliberately doesn't drop this
+  table. A report for an unlinked (deleted) child stays in the database and
+  backups but isn't shown in the UI, since there's no child page for it.
+- **Contents:** totals (answered/correct/wrong/timed out/paused/unscored
+  review, rounds, days played, median seconds); per category: counts,
+  accuracy by level, first-5-days vs last-5-days accuracy, "rushed" wrong
+  answers (< `RUSHED_ANSWER_SECONDS` = 8s), median time; math skills by
+  generator template; day by day (logins, rounds, answered, correct);
+  points (opening/earned/spent/refunds/closing) and reward requests; up to
+  6 recent missed questions per category; and rule-based plain-English key
+  findings, each stated only when enough answers back it up (10 per
+  category, 4 per math skill).
+- **Visibility:** `GET /api/admin/children/[childId]/reports` (list, saves
+  missing periods) and `.../reports/[periodStart]` (one report) are both
+  `requireAdmin`. The "🗂️ 10-day reports" tab in `components/ChildLog.tsx`
+  only renders for admin. `child_reports` is added to both backup table
+  lists (`lib/backupTables.ts`, `scripts/backup.mjs`).
+- **Verified:** migration dry-run (BEGIN/ROLLBACK) against production that
+  also attacked the protections with a throwaway child: DELETE, UPDATE,
+  a hand-made unlink with a changed name, and TRUNCATE were all refused;
+  deleting the child kept the report with `child_id` null and the name
+  intact. Then applied with the user's explicit go-ahead. Banku's live 26 Sep
+  report matched the hand analysis day for day (25/40 and 22/40). All four
+  saved 16-25 Sep reports match direct SQL for answered, correct and closing
+  balance; calling the list twice doesn't duplicate; a real DELETE against
+  production was refused. Routes return 401 without an admin session.
+  `tsc`, `eslint` and `npm run build` are clean.

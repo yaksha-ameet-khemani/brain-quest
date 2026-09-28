@@ -42,6 +42,7 @@ const TABLES = [
   "point_transactions",
   "rewards",
   "redemptions",
+  "child_reports",
 ];
 
 function encrypt(plaintext) {

@@ -99,6 +99,14 @@ export const REPORT_CATEGORY_WINDOW_DAYS = 30;
 export const REPORT_TREND_WINDOW_DAYS = 14;
 export const REPORT_LEVEL_READINESS_WINDOW_DAYS = 7;
 
+// Saved admin-only period reports (lib/periodReport.ts): fixed back-to-back
+// blocks of this many days, counted from the anchor (the day the family first
+// played), so every child's periods line up - 16-25 Sep, 26 Sep-5 Oct, ...
+export const PERIOD_REPORT_DAYS = 10;
+export const PERIOD_REPORT_ANCHOR = "2026-09-16";
+// A wrong answer given faster than this is counted as a likely rushed guess.
+export const RUSHED_ANSWER_SECONDS = 8;
+
 // Points are deliberately close across levels: a harder question should feel
 // harder, not pay a wildly different daily wage. See docs/blueprint.md
 // "Point Economics" for the math behind these numbers.

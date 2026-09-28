@@ -27,6 +27,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ childI
     await tx.query("DELETE FROM redemptions WHERE child_id = $1", [childId]);
     await tx.query("DELETE FROM child_logins WHERE child_id = $1", [childId]);
     await tx.query("DELETE FROM child_category_weights WHERE child_id = $1", [childId]);
+    // Saved 10-day reports (child_reports) are deliberately NOT touched -
+    // they're permanent, and the database itself refuses to delete them.
   });
 
   return NextResponse.json({ ok: true });

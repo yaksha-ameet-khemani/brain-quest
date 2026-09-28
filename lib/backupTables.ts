@@ -16,4 +16,5 @@ export const BACKUP_TABLES = [
   "point_transactions",
   "rewards",
   "redemptions",
+  "child_reports",
 ] as const;

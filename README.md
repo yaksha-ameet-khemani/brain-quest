@@ -143,6 +143,16 @@ Open http://localhost:3000.
   one place), and each kid can see their OWN copy from "📅 My points history"
   on their dashboard (never a sibling's - the child comes from the session).
   Each day also lists the exact login times.
+- Admin-only **"10-day reports"** tab per child: a detailed report for each
+  fixed 10-day period (16-25 Sep, 26 Sep-5 Oct, ...) - totals, every
+  category with per-level accuracy, first-half vs second-half trend and
+  rushed wrong answers, math skills, day by day, points/rewards, examples of
+  missed questions, and plain-English key findings. Each finished period is
+  saved once as a frozen snapshot (`child_reports`); the current period
+  shows live "so far" figures. Parents never see this tab. Saved reports are
+  **permanent**: the database refuses to delete or change them, "reset
+  activity" leaves them alone, and deleting a child keeps their reports
+  (with the child's name stored in each).
 - Requesting a reward takes two taps: "Request" opens an inline "Spend X of
   your Y points on Z? You'll have N left" check, and only "Yes, request it"
   actually spends the points.
