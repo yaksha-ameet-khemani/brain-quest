@@ -139,6 +139,10 @@ Open http://localhost:3000.
   points earned, spent on rewards, refunded/adjusted, the balance at the end
   of that day, rounds/correct answers, logins, and every reward request
   (with its status) - so "where did my points go?" is answerable at a glance.
+  The same table is on the admin dashboard with a child picker (every kid in
+  one place), and each kid can see their OWN copy from "📅 My points history"
+  on their dashboard (never a sibling's - the child comes from the session).
+  Each day also lists the exact login times.
 - Requesting a reward takes two taps: "Request" opens an inline "Spend X of
   your Y points on Z? You'll have N left" check, and only "Yes, request it"
   actually spends the points.

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import Avatar from "@/components/Avatar";
 import Spinner from "@/components/Spinner";
+import PointsHistory from "@/components/PointsHistory";
 import { fileToResizedDataUrl, ImageTooLargeError } from "@/lib/imageResize";
 import { useAutoRefresh } from "@/components/AutoRefresh";
 import type { Level } from "@/lib/config";
@@ -72,6 +73,7 @@ export default function ParentDashboard({
   const [backupResult, setBackupResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [negativeMarking, setNegativeMarking] = useState<boolean | null>(null);
   const [savingNegativeMarking, setSavingNegativeMarking] = useState(false);
+  const [historyChildId, setHistoryChildId] = useState<string | null>(null);
 
   const [newChild, setNewChild] = useState<{
     name: string;
@@ -461,6 +463,35 @@ export default function ParentDashboard({
             ))}
             {activity.length === 0 && <p className="text-sm text-slate-500">No activity yet.</p>}
           </div>
+        </section>
+      )}
+
+      {role === "admin" && activity.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-bold">📅 30-day history (admin only)</h2>
+          <p className="mb-3 text-xs text-slate-500">
+            Pick a child to see each day&apos;s points, login times and reward requests.
+          </p>
+          <div className="mb-3 flex flex-wrap gap-2">
+            {activity.map((a) => {
+              const selected = (historyChildId ?? activity[0]?.id) === a.id;
+              return (
+                <button
+                  key={a.id}
+                  onClick={() => setHistoryChildId(a.id)}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${
+                    selected ? "bg-brand-500 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"
+                  }`}
+                >
+                  <span className="flex h-4 w-4 items-center justify-center text-sm">
+                    <Avatar photoDataUrl={a.photoDataUrl} avatar={a.avatar} name={a.name} />
+                  </span>
+                  {a.name}
+                </button>
+              );
+            })}
+          </div>
+          <PointsHistory endpoint={`/api/admin/children/${historyChildId ?? activity[0]?.id}/history`} />
         </section>
       )}
 

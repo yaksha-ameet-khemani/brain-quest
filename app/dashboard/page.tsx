@@ -97,6 +97,13 @@ export default async function DashboardPage() {
         >
           🎁 Rewards catalog
         </Link>
+
+        <Link
+          href="/history"
+          className="rounded-2xl bg-white p-6 text-center text-lg font-bold text-brand-700 shadow-sm ring-1 ring-slate-100 active:bg-brand-50"
+        >
+          📅 My points history
+        </Link>
       </section>
     </main>
   );

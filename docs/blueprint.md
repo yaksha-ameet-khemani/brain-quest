@@ -1004,3 +1004,23 @@ an inline confirmation inside that reward's card first ("Spend 750 of your
 it" / "No, keep my points"). It's inline rather than `window.confirm` to match
 the admin reset-activity button, and because a native dialog is easy for a
 kid to dismiss without reading. Client-only; `/api/redeem` is unchanged.
+
+**v29 update - 30-day history for kids too, and every kid in one admin view:**
+the user asked for the v28 table in two more places. (1) The admin dashboard
+(`components/ParentDashboard.tsx`) has a "📅 30-day history (admin only)"
+section right after Family activity, with a chip per child, so the admin can
+flip between every kid without opening each child page. (2) Kids get
+`/history` ("📅 My points history" on their dashboard), backed by
+`GET /api/history`, which takes the child id ONLY from the kid session cookie
+- a `?childId=` in the URL is ignored. So a kid sees their own history after
+logging in, never a sibling's, and nothing new appears before login (the v8
+homepage precedent). The query moved from the admin route into
+`lib/pointsHistory.ts`, and both routes call it. The login column now lists
+each login's time instead of a count. `components/PointsHistory.tsx` takes the
+endpoint as a prop and uses kid-friendly wording when `forKid` is set.
+Verified with forged sessions against the real DB (read-only): Melina's kid
+route and the admin route return the same rows; kid route 401 without a
+cookie; admin route 401 with a kid cookie; `?childId=<Lavin>` on the kid
+route still returns Melina's data; `/history` redirects to `/` when signed
+out. The admin history's current balance matches the ledger total for all
+four children. `tsc`, `eslint` and `npm run build` are clean.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { HistoryDay } from "@/app/api/admin/children/[childId]/history/route";
+import type { HistoryDay, PointsHistory as PointsHistoryData } from "@/lib/pointsHistory";
 
 const STATUS_LABEL: Record<HistoryDay["requests"][number]["status"], string> = {
   pending: "⏳ pending",
@@ -15,25 +15,34 @@ function signed(n: number): string {
   return n > 0 ? `+${n}` : `${n}`;
 }
 
-/** Admin-only: one row per day for the last 30 days - points in/out, the
- * balance at the end of that day, play activity, and any reward requests. */
-export default function PointsHistory({ childId }: { childId: string }) {
-  const [data, setData] = useState<{ openingBalance: number; days: HistoryDay[] } | null>(null);
+function timeOf(iso: string): string {
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+/** One row per day for the last 30 days - points in/out, the balance at the
+ * end of that day, play activity, login times, and any reward requests.
+ * `endpoint` is the admin per-child route or the kid's own `/api/history`. */
+export default function PointsHistory({ endpoint, forKid = false }: { endpoint: string; forKid?: boolean }) {
+  const [data, setData] = useState<PointsHistoryData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setData(null);
+    setError(null);
     (async () => {
-      const res = await fetch(`/api/admin/children/${childId}/history`);
+      const res = await fetch(endpoint);
       if (res.ok) setData(await res.json());
       else setError("Couldn't load history.");
     })();
-  }, [childId]);
+  }, [endpoint]);
 
   return (
     <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
       <h2 className="font-bold">📅 Last 30 days</h2>
       <p className="mt-1 text-xs text-slate-500">
-        Newest first. &quot;Spent&quot; is taken the moment a reward is requested; a denied request shows up as a refund.
+        {forKid
+          ? "Newest first. Points are taken as soon as you request a reward. If a parent says no, you get them back as a refund."
+          : "Newest first. \"Spent\" is taken the moment a reward is requested; a denied request shows up as a refund."}
       </p>
       {error ? (
         <p className="mt-3 text-sm text-rose-700">{error}</p>
@@ -42,7 +51,7 @@ export default function PointsHistory({ childId }: { childId: string }) {
       ) : (
         <>
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-xs">
+            <table className="w-full min-w-[680px] text-left text-xs">
               <thead className="text-slate-500">
                 <tr className="border-b border-slate-200">
                   <th className="py-2 pr-2 font-semibold">Date</th>
@@ -52,13 +61,14 @@ export default function PointsHistory({ childId }: { childId: string }) {
                   <th className="py-2 pr-2 text-right font-semibold">Balance</th>
                   <th className="py-2 pr-2 text-right font-semibold">Rounds</th>
                   <th className="py-2 pr-2 text-right font-semibold">Correct</th>
-                  <th className="py-2 pr-2 text-right font-semibold">Logins</th>
+                  <th className="py-2 pr-2 text-right font-semibold">Logged in at</th>
                   <th className="py-2 font-semibold">Reward requests</th>
                 </tr>
               </thead>
               <tbody>
                 {data.days.map((d) => {
-                  const idle = d.earned === 0 && d.redeemed === 0 && d.refunded + d.adjusted === 0 && d.logins === 0;
+                  const idle =
+                    d.earned === 0 && d.redeemed === 0 && d.refunded + d.adjusted === 0 && d.logins.length === 0;
                   return (
                     <tr
                       key={d.date}
@@ -81,7 +91,19 @@ export default function PointsHistory({ childId }: { childId: string }) {
                       <td className="whitespace-nowrap py-2 pr-2 text-right">
                         {d.answered ? `${d.correct}/${d.answered}` : "–"}
                       </td>
-                      <td className="py-2 pr-2 text-right">{d.logins || "–"}</td>
+                      <td className="py-2 pr-2 text-right">
+                        {d.logins.length === 0 ? (
+                          "–"
+                        ) : (
+                          <ul className="grid gap-0.5">
+                            {d.logins.map((t, i) => (
+                              <li key={t + i} className="whitespace-nowrap">
+                                {timeOf(t)}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </td>
                       <td className="py-2">
                         {d.requests.length === 0 ? (
                           "–"
@@ -89,12 +111,7 @@ export default function PointsHistory({ childId }: { childId: string }) {
                           <ul className="grid gap-0.5">
                             {d.requests.map((r) => (
                               <li key={r.requestedAt} className="whitespace-nowrap">
-                                {r.rewardName} ({r.cost}) ·{" "}
-                                {new Date(r.requestedAt).toLocaleTimeString(undefined, {
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                })}{" "}
-                                · {STATUS_LABEL[r.status]}
+                                {r.rewardName} ({r.cost}) · {timeOf(r.requestedAt)} · {STATUS_LABEL[r.status]}
                               </li>
                             ))}
                           </ul>

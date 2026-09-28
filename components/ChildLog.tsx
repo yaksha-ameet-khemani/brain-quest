@@ -554,7 +554,7 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
       {tab === "report" ? (
         <ChildReport childId={childId} />
       ) : tab === "history" ? (
-        <PointsHistory childId={childId} />
+        <PointsHistory endpoint={`/api/admin/children/${childId}/history`} />
       ) : tab === "logins" ? (
         <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
           <h2 className="font-bold">🕒 Last {logins?.length ?? 10} logins</h2>
