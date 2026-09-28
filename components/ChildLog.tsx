@@ -8,6 +8,7 @@ import Avatar from "@/components/Avatar";
 import { fileToResizedDataUrl, ImageTooLargeError } from "@/lib/imageResize";
 import { useAutoRefresh } from "@/components/AutoRefresh";
 import ChildReport from "@/components/ChildReport";
+import PointsHistory from "@/components/PointsHistory";
 import Spinner from "@/components/Spinner";
 
 interface LogEntry {
@@ -468,7 +469,7 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
   const [log, setLog] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "correct" | "wrong">("all");
-  const [tab, setTab] = useState<"report" | "log" | "logins">("report");
+  const [tab, setTab] = useState<"report" | "log" | "logins" | "history">("report");
   const [logins, setLogins] = useState<string[] | null>(null);
 
   useEffect(() => {
@@ -536,8 +537,8 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
       {isAdmin && <TimerEditor childId={childId} />}
       {isAdmin && <ResetActivityButton childId={childId} onDone={refreshLog} />}
 
-      <div className="flex gap-2">
-        {(isAdmin ? (["report", "log", "logins"] as const) : (["report", "log"] as const)).map((t) => (
+      <div className="flex flex-wrap gap-2">
+        {(isAdmin ? (["report", "log", "logins", "history"] as const) : (["report", "log"] as const)).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -545,13 +546,15 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
               tab === t ? "bg-brand-500 text-white" : "bg-white text-slate-500 ring-1 ring-slate-200"
             }`}
           >
-            {t === "report" ? "📊 Report" : t === "log" ? "📋 Full log" : "🕒 Last logins"}
+            {t === "report" ? "📊 Report" : t === "log" ? "📋 Full log" : t === "logins" ? "🕒 Last logins" : "📅 30-day history"}
           </button>
         ))}
       </div>
 
       {tab === "report" ? (
         <ChildReport childId={childId} />
+      ) : tab === "history" ? (
+        <PointsHistory childId={childId} />
       ) : tab === "logins" ? (
         <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
           <h2 className="font-bold">🕒 Last {logins?.length ?? 10} logins</h2>

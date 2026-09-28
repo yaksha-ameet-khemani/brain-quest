@@ -973,3 +973,34 @@ right answer by the time "Next question" unlocks, instead of potentially
 never learning it. Purely a client-side change - no API/schema touched.
 Verified with `npx tsc --noEmit`, `eslint`, and a full `npm run build`
 (catches React hooks-rules issues the other two don't) - all clean.
+
+**v28 update - admin per-child 30-day points history:** prompted by a real
+complaint - Melina said her points dropped from ~1,000 to ~350. Checked her
+production ledger first (read-only): no adjustments or negative-marking
+entries at all (negative marking is off); her balance was 1,023 when she
+requested "Movie night pick" (750) on 2026-09-27 16:30 IST, 29 seconds after
+logging in, leaving 273, and one round afterwards took her to 324. The
+request is still pending, as is a 50-point snack request from 2026-09-17.
+So the points were spent on her own request, which reserves them straight
+away by design (see schema.sql `redemptions`); if a parent denies it, the
+750 is refunded. To make this kind of question quick to answer next time, the
+child detail page (`components/ChildLog.tsx`) gains an admin-only
+"📅 30-day history" tab (`components/PointsHistory.tsx`) backed by
+`GET /api/admin/children/[childId]/history`: one row per local calendar day
+(APP_TIMEZONE, same as the daily-round limit), including idle days, with
+earned / spent / refund+adjustment / closing balance / rounds completed /
+correct-of-answered / logins / reward requests with status. Closing balance
+= ledger sum before the window plus each day's net, so it always agrees
+with the kid's shown balance. Days with a reward request are highlighted.
+Read-only; no schema change. Verified with a forged admin cookie against
+the real DB: Melina's rows reproduce the 1,023 -> 324 drop exactly, and the
+route returns 401 without a session. `tsc`, `eslint` and `npm run build`
+are all clean.
+Same change, second half: the kid Rewards page used to send a request (and
+debit the points) on a single tap of "Request", which is the likeliest way a
+child spends 750 points without meaning to. `app/rewards/page.tsx` now shows
+an inline confirmation inside that reward's card first ("Spend 750 of your
+1,023 points on Movie night pick? You'll have 273 left." with "Yes, request
+it" / "No, keep my points"). It's inline rather than `window.confirm` to match
+the admin reset-activity button, and because a native dialog is easy for a
+kid to dismiss without reading. Client-only; `/api/redeem` is unchanged.

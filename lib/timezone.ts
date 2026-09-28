@@ -1,6 +1,6 @@
 // No extra date library needed - Intl covers day-boundary math fine.
 
-const TZ = process.env.APP_TIMEZONE || "Asia/Kolkata";
+export const TZ = process.env.APP_TIMEZONE || "Asia/Kolkata";
 
 /** "YYYY-MM-DD" for `when` (default: now) as seen in APP_TIMEZONE. Two calls
  * made a few hours apart on the same calendar day in that timezone return the

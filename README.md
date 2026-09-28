@@ -135,6 +135,13 @@ Open http://localhost:3000.
   login, attempted/correct/wrong, time played) for every kid at once, plus
   an admin-only "reset activity" per child for testing, which never touches
   the child's profile/PIN.
+- Admin also gets a per-child **"30-day history"** tab: one row per day with
+  points earned, spent on rewards, refunded/adjusted, the balance at the end
+  of that day, rounds/correct answers, logins, and every reward request
+  (with its status) - so "where did my points go?" is answerable at a glance.
+- Requesting a reward takes two taps: "Request" opens an inline "Spend X of
+  your Y points on Z? You'll have N left" check, and only "Yes, request it"
+  actually spends the points.
 
 **Backups**
 - `.github/workflows/backup.yml` dumps every table daily and commits it

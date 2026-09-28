@@ -32,6 +32,9 @@ export default function RewardsPage() {
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [history, setHistory] = useState<Redemption[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Requesting spends points immediately, so a tap only opens this inline
+  // confirmation - a real request needs a second, deliberate tap.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   async function refresh() {
@@ -67,6 +70,7 @@ export default function RewardsPage() {
       await refresh();
     } finally {
       setBusyId(null);
+      setConfirmingId(null);
     }
   }
 
@@ -87,25 +91,53 @@ export default function RewardsPage() {
         {rewards.map((r) => {
           const affordable = balance !== null && balance >= r.cost;
           return (
-            <div
-              key={r.id}
-              className="flex items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">{r.emoji}</span>
-                <div>
-                  <p className="font-semibold">{r.name}</p>
-                  <p className="text-sm text-slate-500">{r.cost} pts</p>
+            <div key={r.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{r.emoji}</span>
+                  <div>
+                    <p className="font-semibold">{r.name}</p>
+                    <p className="text-sm text-slate-500">{r.cost} pts</p>
+                  </div>
                 </div>
+                {confirmingId !== r.id && (
+                  <button
+                    onClick={() => {
+                      setMessage(null);
+                      setConfirmingId(r.id);
+                    }}
+                    disabled={!affordable || busyId !== null}
+                    className="rounded-full bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-200 disabled:text-slate-400"
+                  >
+                    {affordable ? "Request" : "Locked"}
+                  </button>
+                )}
               </div>
-              <button
-                onClick={() => redeem(r)}
-                disabled={!affordable || busyId === r.id}
-                className="flex items-center gap-1.5 rounded-full bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-200 disabled:text-slate-400"
-              >
-                {busyId === r.id && <Spinner className="h-3.5 w-3.5" />}
-                {busyId === r.id ? "Requesting…" : affordable ? "Request" : "Locked"}
-              </button>
+              {confirmingId === r.id && balance !== null && (
+                <div className="mt-3 rounded-xl bg-amber-50 p-3 text-sm">
+                  <p>
+                    Spend <b>{r.cost}</b> of your {balance} points on <b>{r.name}</b>? You&apos;ll have{" "}
+                    <b>{balance - r.cost}</b> left.
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => redeem(r)}
+                      disabled={busyId === r.id}
+                      className="flex items-center gap-1.5 rounded-full bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    >
+                      {busyId === r.id && <Spinner className="h-3.5 w-3.5" />}
+                      {busyId === r.id ? "Requesting…" : "Yes, request it"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmingId(null)}
+                      disabled={busyId === r.id}
+                      className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200"
+                    >
+                      No, keep my points
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
