@@ -48,6 +48,8 @@ export interface QuestionRow {
   correct_option_index: number;
   explanation: string;
   concept: string | null;
+  skill_key: string | null; // lib/skills.ts
+  skill_step: 1 | 2 | 3 | null;
   is_active: boolean;
   created_at: string;
 }

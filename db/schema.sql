@@ -84,6 +84,19 @@ create table child_category_weights (
 );
 
 -- ---------------------------------------------------------------------------
+-- Skill map: the one fixed list of skills every bank question is tagged with
+-- (questions.skill_key). Skills cut across categories. Math questions map to
+-- skills by template_key in lib/skills.ts instead. Rows: db/migrations/016.
+-- ---------------------------------------------------------------------------
+create table skills (
+  key text primary key,
+  area text not null check (area in ('reasoning', 'numbers', 'shapes', 'words')),
+  name text not null,
+  description text not null,
+  sort_order smallint not null
+);
+
+-- ---------------------------------------------------------------------------
 -- Question bank (curated logic / riddle / spatial questions). Math questions
 -- are generated on the fly from templates (lib/mathQuestions.ts) instead of
 -- stored here, so the bank never "runs out" of math content.
@@ -103,9 +116,12 @@ create table questions (
                  -- underlying skill (e.g. 'odd-one-out'), so a checkup round
                  -- (see rounds.kind) can serve a genuinely different question
                  -- on that same skill instead of a same-category guess
+  skill_key text references skills (key), -- the one skill it mainly tests; see lib/skills.ts
+  skill_step smallint check (skill_step between 1 and 3), -- 1 easier / 2 typical / 3 harder than typical for its level
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
+create index questions_skill_key_idx on questions (skill_key);
 
 -- ---------------------------------------------------------------------------
 -- Rounds: one quiz attempt of QUESTIONS_PER_ROUND questions.

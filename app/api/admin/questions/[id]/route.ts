@@ -3,6 +3,7 @@ import { queryOne } from "@/lib/db";
 import { requireAdmin } from "@/lib/requireParent";
 import { BANK_CATEGORIES, isValidLevel, type BankCategory, type Level } from "@/lib/config";
 import type { QuestionRow } from "@/lib/types";
+import { loadSkills } from "@/lib/loadSkills";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if ("concept" in (body ?? {})) {
     sets.push(`concept = $${i++}`);
     values.push(typeof body.concept === "string" && body.concept.trim() ? body.concept.trim() : null);
+  }
+  if ("skillKey" in (body ?? {})) {
+    const skillKey = typeof body.skillKey === "string" && body.skillKey ? body.skillKey : null;
+    if (skillKey && !(await loadSkills()).some((s) => s.key === skillKey)) {
+      return NextResponse.json({ error: "Unknown skill." }, { status: 400 });
+    }
+    sets.push(`skill_key = $${i++}`);
+    values.push(skillKey);
+  }
+  if ("skillStep" in (body ?? {})) {
+    sets.push(`skill_step = $${i++}`);
+    values.push([1, 2, 3].includes(body.skillStep) ? body.skillStep : null);
   }
   if (typeof body?.isActive === "boolean") {
     sets.push(`is_active = $${i++}`);

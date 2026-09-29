@@ -54,13 +54,23 @@ Open http://localhost:3000.
   a child's level, and admin can change it any time.
 - Math questions are generated from templates (`lib/mathQuestions.ts`) so
   they never run out; logic/riddle/spatial questions come from a curated,
-  hand-verified bank (630 questions - 70 per level per category, across all
-  3 levels) that admin manages from an in-app **Question Bank** page,
+  hand-verified bank (3,150 questions - 350 per level per category, across
+  all 3 levels) that admin manages from an in-app **Question Bank** page,
   including each question's live "proficiency" (attempts/correct/success
   rate). The reward catalog gets the same admin-managed treatment from a
   **Rewards Catalog** page - add/edit/archive rewards, with a live
   "times redeemed" count per reward; archiving hides it from what kids can
   redeem without touching anyone's past redemption history.
+- Every bank question is tagged with one **skill** from a fixed list of 31
+  (e.g. "Patterns and sequences", "Money and shopping", "Folding, cutting and
+  nets", "Guess from clues") in 4 areas - Reasoning, Numbers, Shapes and
+  space, Words and knowledge - plus a **step** (easier / typical / harder
+  than other questions at its level). Skills cut across categories: a
+  "logic" question about ages is "Find the unknown". Math questions map to
+  skills by their generator template (`lib/skills.ts`). Admin sets or changes
+  a question's skill on the Question Bank page and can filter by skill. This
+  is the groundwork for per-child skill progress; nothing kids see uses it
+  yet.
 - Admin can set a per-child, per-category priority weight (e.g. give a kid
   more logic practice if that's their weak spot), which steers what shows
   up in that child's rounds.

@@ -3,6 +3,7 @@ import { query, queryOne } from "@/lib/db";
 import { requireAdmin } from "@/lib/requireParent";
 import { BANK_CATEGORIES, isValidLevel, type BankCategory, type Level } from "@/lib/config";
 import type { QuestionRow } from "@/lib/types";
+import { loadSkills } from "@/lib/loadSkills";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export async function GET() {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: "Admin sign-in required." }, { status: 401 });
 
-  const rows = await query<QuestionWithStats>(`
+  const [rows, skills] = await Promise.all([query<QuestionWithStats>(`
     SELECT
       q.*,
       COALESCE(s.attempts, 0) AS attempts,
@@ -33,7 +34,7 @@ export async function GET() {
       GROUP BY question_id
     ) s ON s.question_id = q.id
     ORDER BY q.level, q.category, q.created_at
-  `);
+  `), loadSkills()]);
 
   const questions = rows.map((r) => ({
     id: r.id,
@@ -44,13 +45,15 @@ export async function GET() {
     correctOptionIndex: r.correct_option_index,
     explanation: r.explanation,
     concept: r.concept,
+    skillKey: r.skill_key,
+    skillStep: r.skill_step,
     isActive: r.is_active,
     attempts: Number(r.attempts),
     correct: Number(r.correct),
     successRate: Number(r.attempts) > 0 ? Number(r.correct) / Number(r.attempts) : null,
   }));
 
-  return NextResponse.json({ questions });
+  return NextResponse.json({ questions, skills });
 }
 
 // POST: add a new bank question. Admin-only.
@@ -66,6 +69,11 @@ export async function POST(req: Request) {
   const correctOptionIndex: number | undefined = body?.correctOptionIndex;
   const explanation: string | undefined = body?.explanation?.trim();
   const concept: string | null = typeof body?.concept === "string" && body.concept.trim() ? body.concept.trim() : null;
+  const skillKey: string | null = typeof body?.skillKey === "string" && body.skillKey ? body.skillKey : null;
+  const skillStep: number | null = [1, 2, 3].includes(body?.skillStep) ? body.skillStep : null;
+  if (skillKey && !(await loadSkills()).some((s) => s.key === skillKey)) {
+    return NextResponse.json({ error: "Unknown skill." }, { status: 400 });
+  }
 
   if (
     !isValidLevel(level) ||
@@ -87,10 +95,10 @@ export async function POST(req: Request) {
   }
 
   const question = await queryOne<QuestionRow>(
-    `INSERT INTO questions (level, category, question_text, options, correct_option_index, explanation, concept)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO questions (level, category, question_text, options, correct_option_index, explanation, concept, skill_key, skill_step)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
-    [level, category, questionText, JSON.stringify(options), correctOptionIndex, explanation, concept]
+    [level, category, questionText, JSON.stringify(options), correctOptionIndex, explanation, concept, skillKey, skillStep]
   );
   if (!question) return NextResponse.json({ error: "Could not create question." }, { status: 500 });
   return NextResponse.json({ question }, { status: 201 });

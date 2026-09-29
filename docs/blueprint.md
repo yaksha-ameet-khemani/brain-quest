@@ -1081,3 +1081,64 @@ saved for each child every 10 days, visible only to admin.
   balance; calling the list twice doesn't duplicate; a real DELETE against
   production was refused. Routes return 401 without an admin session.
   `tsc`, `eslint` and `npm run build` are clean.
+
+**v31 update - skill map: every bank question tagged with a skill:** step 3
+of the plan agreed on 2026-09-21 (1: review/checkup avoid recent questions,
+2: more questions, 3: tag questions by what they test, 4: adaptive
+difficulty per skill). The user asked for tags with "real meaning" that can
+later decide what a child is served, show how they are progressing, and show
+what content to add - not a static label. This step only lays the data
+down; nothing a kid sees changes yet.
+
+- **Reading the bank first changed the design.** Categories turned out to be
+  looser than their names: "logic" holds many arithmetic word problems
+  (ages, pipes, chickens-and-cows), vocabulary and general knowledge;
+  "spatial" holds area/perimeter/scale math. And 825 of the 1,050 riddles
+  are "I am ... What am I?" description clues, which test vocabulary and
+  knowledge more than reasoning. So skills deliberately **cut across
+  categories** - categories still build rounds, skills are the layer
+  underneath that says what a child can actually do.
+- **The list:** 31 skills in 4 areas (Reasoning 9, Numbers 8, Shapes and
+  space 9, Words and knowledge 5), reviewed and approved by the user before
+  any tagging. Kept short on purpose: a child answers ~25 bank questions a
+  day, so ~30 skills each get the ~5 answers needed to judge them within a
+  week. Family-relation puzzles (~20 in the whole bank) were too few for
+  their own skill and sit under "If-then and rules".
+- **Schema** (`db/migrations/016_skills.sql`): a `skills` table (key, area,
+  name, description, sort_order) as the one list, and
+  `questions.skill_key` (FK) + `questions.skill_step` (1 easier / 2 typical
+  / 3 harder than typical *for its level*, so level + step gives a finer
+  difficulty scale). The old free-text `concept` column is left alone (it
+  was never set on any question); step 3 of the plan will switch checkup and
+  review from `concept` to `skill_key`. Math has no rows, so
+  `MATH_TEMPLATE_SKILL` in `lib/skills.ts` maps each of the 24 generator
+  templates to a skill. `skills` is added to both backup table lists.
+- **Tagging** (`db/migrations/017_tag_question_skills.sql`, update only):
+  two independent teams of agents each tagged all 3,150 questions, one agent
+  per level/category, neither able to see the other's output, each passing
+  a checker (every question once, valid skill, step 1-3). They agreed on the
+  skill for 2,839 (90%); the 311 disagreements were settled by hand with
+  consistent rules (e.g. stacks/above/below -> Position and maps; compass
+  and map directions -> Directions and turns; reflecting/rotating points ->
+  Rotation, mirrors and symmetry; every description riddle -> Guess from
+  clues whatever its topic; "has eyes but cannot see" style -> Wordplay).
+  Step is softer: the teams gave the same step only 64% of the time, so
+  both scores are summed and ranked within each level/category (easiest
+  ~quarter -> 1, hardest ~quarter -> 3, ties share a step). Treat step as a
+  rough hint and skill as the reliable part.
+- **Admin UI:** the Question Bank page's free-text "Concept tag" box is
+  replaced by a Skill dropdown (grouped by area) and a step picker; each
+  card shows its skill and step; a new skill filter includes "No skill
+  set". `GET /api/admin/questions` also returns the skill list;
+  POST/PATCH accept `skillKey`/`skillStep` and reject unknown skills.
+  `lib/skills.ts` has no DB import so the client page can use it; the DB
+  read is `lib/loadSkills.ts`.
+- **Resulting counts** (useful for "what to add"): Guess from clues 854,
+  Shape facts 201, Rotation/mirrors 155 ... down to Money 7, Counting shapes
+  13, Word meanings 13, Fractions/ratios 18 - several Numbers skills are
+  thin in the bank and rely on the math generator.
+- **Verified:** both migrations dry-run together against production inside
+  BEGIN/ROLLBACK: 31 skills inserted, 3,150 rows updated, every question has
+  a skill and step, every skill has at least one question, DB 12 MB; 35
+  random tags spot-checked by hand. `tsc`, `eslint` and `npm run build`
+  clean.

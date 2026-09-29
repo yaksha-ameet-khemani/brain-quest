@@ -10,6 +10,7 @@ export const BACKUP_TABLES = [
   "children",
   "child_logins",
   "child_category_weights",
+  "skills",
   "questions",
   "rounds",
   "round_questions",

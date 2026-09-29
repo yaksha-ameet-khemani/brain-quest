@@ -5,6 +5,7 @@ import { ALL_LEVELS, type Level } from "@/lib/config";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useAutoRefresh } from "@/components/AutoRefresh";
 import Spinner from "@/components/Spinner";
+import { SKILL_AREAS, type Skill } from "@/lib/skills";
 
 interface BankQuestion {
   id: string;
@@ -15,6 +16,8 @@ interface BankQuestion {
   correctOptionIndex: number;
   explanation: string;
   concept: string | null;
+  skillKey: string | null;
+  skillStep: 1 | 2 | 3 | null;
   isActive: boolean;
   attempts: number;
   correct: number;
@@ -29,7 +32,11 @@ const BLANK_FORM = {
   correctOptionIndex: "0",
   explanation: "",
   concept: "",
+  skillKey: "",
+  skillStep: "2",
 };
+
+const STEP_LABELS: Record<number, string> = { 1: "easier", 2: "typical", 3: "harder" };
 
 // The bank is a few thousand questions - drawing every card at once makes the
 // page slow (especially on a phone), so show a page at a time.
@@ -38,6 +45,8 @@ const PAGE_SIZE = 100;
 export default function QuestionBank() {
   useAutoRefresh();
   const [questions, setQuestions] = useState<BankQuestion[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [skillFilter, setSkillFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [levelFilter, setLevelFilter] = useState<"all" | "1" | "2" | "3">("all");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "logic" | "riddle" | "spatial">("all");
@@ -52,7 +61,11 @@ export default function QuestionBank() {
 
   async function refresh() {
     const res = await fetch("/api/admin/questions");
-    if (res.ok) setQuestions((await res.json()).questions);
+    if (res.ok) {
+      const data = await res.json();
+      setQuestions(data.questions);
+      setSkills(data.skills);
+    }
     setLoading(false);
   }
 
@@ -65,15 +78,16 @@ export default function QuestionBank() {
       questions.filter((q) => {
         if (levelFilter !== "all" && String(q.level) !== levelFilter) return false;
         if (categoryFilter !== "all" && q.category !== categoryFilter) return false;
+        if (skillFilter === "none" ? q.skillKey !== null : skillFilter !== "all" && q.skillKey !== skillFilter) return false;
         if (!showInactive && !q.isActive) return false;
         return true;
       }),
-    [questions, levelFilter, categoryFilter, showInactive]
+    [questions, levelFilter, categoryFilter, skillFilter, showInactive]
   );
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [levelFilter, categoryFilter, showInactive]);
+  }, [levelFilter, categoryFilter, skillFilter, showInactive]);
 
   function startEdit(q: BankQuestion) {
     setEditingId(q.id);
@@ -85,6 +99,8 @@ export default function QuestionBank() {
       correctOptionIndex: String(q.correctOptionIndex),
       explanation: q.explanation,
       concept: q.concept ?? "",
+      skillKey: q.skillKey ?? "",
+      skillStep: String(q.skillStep ?? 2),
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -121,6 +137,8 @@ export default function QuestionBank() {
         correctOptionIndex: Number(form.correctOptionIndex),
         explanation: form.explanation,
         concept: form.concept.trim() || null,
+        skillKey: form.skillKey || null,
+        skillStep: form.skillKey ? Number(form.skillStep) : null,
       };
       const res = await fetch(editingId ? `/api/admin/questions/${editingId}` : "/api/admin/questions", {
         method: editingId ? "PATCH" : "POST",
@@ -217,15 +235,41 @@ export default function QuestionBank() {
             className="rounded-xl border border-slate-200 p-3"
             rows={2}
           />
-          <input
-            placeholder="Concept tag (optional, e.g. 'odd-one-out')"
-            value={form.concept}
-            onChange={(e) => setForm((s) => ({ ...s, concept: e.target.value }))}
-            className="rounded-xl border border-slate-200 p-3"
-          />
+          <div className="flex gap-3">
+            <select
+              value={form.skillKey}
+              onChange={(e) => setForm((s) => ({ ...s, skillKey: e.target.value }))}
+              className="min-w-0 flex-1 rounded-xl border border-slate-200 p-3"
+            >
+              <option value="">Skill (not set)</option>
+              {SKILL_AREAS.map((a) => (
+                <optgroup key={a.key} label={a.name}>
+                  {skills
+                    .filter((sk) => sk.area === a.key)
+                    .map((sk) => (
+                      <option key={sk.key} value={sk.key}>
+                        {sk.name}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+            </select>
+            <select
+              value={form.skillStep}
+              onChange={(e) => setForm((s) => ({ ...s, skillStep: e.target.value }))}
+              disabled={!form.skillKey}
+              className="rounded-xl border border-slate-200 p-3 disabled:opacity-50"
+            >
+              {[1, 2, 3].map((n) => (
+                <option key={n} value={n}>
+                  {STEP_LABELS[n]}
+                </option>
+              ))}
+            </select>
+          </div>
           <p className="-mt-2 text-xs text-slate-400">
-            Group questions that test the same skill so a child&apos;s daily checkup can swap in a different
-            question on that skill instead of a random one from the category.
+            {skills.find((sk) => sk.key === form.skillKey)?.description ??
+              "The one skill this question mainly tests, and whether it is easier, typical or harder than other questions at its level."}
           </p>
           {message && <p className="text-sm text-brand-700">{message}</p>}
           <div className="flex gap-2">
@@ -277,6 +321,25 @@ export default function QuestionBank() {
         >
           {showInactive ? "Showing archived" : "Show archived"}
         </button>
+        <select
+          value={skillFilter}
+          onChange={(e) => setSkillFilter(e.target.value)}
+          className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 ring-1 ring-slate-200"
+        >
+          <option value="all">All skills</option>
+          <option value="none">No skill set</option>
+          {SKILL_AREAS.map((a) => (
+            <optgroup key={a.key} label={a.name}>
+              {skills
+                .filter((sk) => sk.area === a.key)
+                .map((sk) => (
+                  <option key={sk.key} value={sk.key}>
+                    {sk.name}
+                  </option>
+                ))}
+            </optgroup>
+          ))}
+        </select>
       </div>
 
       {loading ? (
@@ -292,14 +355,15 @@ export default function QuestionBank() {
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="mb-1 flex gap-2 text-xs">
+                  <div className="mb-1 flex flex-wrap gap-2 text-xs">
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold capitalize">
                       {q.category}
                     </span>
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold">Level {q.level}</span>
-                    {q.concept && (
+                    {q.skillKey && (
                       <span className="rounded-full bg-violet-100 px-2 py-0.5 font-semibold text-violet-700">
-                        {q.concept}
+                        {skills.find((sk) => sk.key === q.skillKey)?.name ?? q.skillKey}
+                        {q.skillStep && ` · ${STEP_LABELS[q.skillStep]}`}
                       </span>
                     )}
                     {!q.isActive && (
