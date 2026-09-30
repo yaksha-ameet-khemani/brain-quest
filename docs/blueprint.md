@@ -1314,3 +1314,17 @@ the user's choice):
   switch, and a reload landing on the same tab. `tsc`, `eslint`,
   `npm run build` clean. The child page (settings cards above 7 tabs) is
   next, once the user has tried this.
+
+**v36 update - child page settings in a tab:** same treatment as v35 for
+the per-child page (`components/ChildLog.tsx`), at the user's request after
+trying the dashboard tabs. The four cards that sat above the tabs - Login
+PIN, category priorities, timers, reset activity - moved into a new
+**⚙️ Settings** tab (last), so the page opens straight on the Report.
+Parents get Report, Full log and Settings (PIN only, as before); the admin
+gets all eight. The tab is in the address (`?tab=settings`), same as the
+dashboard. With eight tabs the bar is wider than the page even on a
+desktop, so it wraps onto a second row instead of scrolling sideways -
+scrolling hid Practice and Settings off-screen. Checked in the browser on
+Banku's page (view only): all four settings cards under Settings, the tab
+from the address, and Report loading under the tabs after switching back.
+`tsc`, `eslint`, `npm run build` clean.

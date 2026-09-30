@@ -195,6 +195,9 @@ Open http://localhost:3000.
   **📊 Activity** (family activity, 30-day history) and **⚙️ Settings**
   (game settings, backups, parent accounts). The open tab is kept in the
   address (`/parent?tab=settings`) so refresh and Back return to it.
+  Each child's page works the same way: its settings cards (PIN, category
+  priorities, timers, reset activity) live in a **⚙️ Settings** tab, so
+  the page opens straight on the Report.
 - Requesting a reward takes two taps: "Request" opens an inline "Spend X of
   your Y points on Z? You'll have N left" check, and only "Yes, request it"
   actually spends the points.

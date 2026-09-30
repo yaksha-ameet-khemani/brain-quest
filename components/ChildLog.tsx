@@ -466,14 +466,46 @@ function ResetActivityButton({ childId, onDone }: { childId: string; onDone: () 
   );
 }
 
-export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmin: boolean }) {
+type ChildTab = "report" | "log" | "logins" | "history" | "periods" | "skills" | "practice" | "settings";
+
+const CHILD_TABS: { key: ChildTab; label: string; adminOnly: boolean }[] = [
+  { key: "report", label: "📊 Report", adminOnly: false },
+  { key: "log", label: "📋 Full log", adminOnly: false },
+  { key: "logins", label: "🕒 Last logins", adminOnly: true },
+  { key: "history", label: "📅 30-day history", adminOnly: true },
+  { key: "periods", label: "🗂️ 10-day reports", adminOnly: true },
+  { key: "skills", label: "🧩 Skills", adminOnly: true },
+  { key: "practice", label: "🎯 Practice", adminOnly: true },
+  { key: "settings", label: "⚙️ Settings", adminOnly: false },
+];
+
+export default function ChildLog({
+  childId,
+  isAdmin,
+  initialTab,
+}: {
+  childId: string;
+  isAdmin: boolean;
+  initialTab: string | undefined;
+}) {
   useAutoRefresh();
+  const tabs = CHILD_TABS.filter((t) => isAdmin || !t.adminOnly);
   const [child, setChild] = useState<ChildInfo | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "correct" | "wrong">("all");
-  const [tab, setTab] = useState<"report" | "log" | "logins" | "history" | "periods" | "skills" | "practice">("report");
+  const [tab, setTab] = useState<ChildTab>(tabs.find((t) => t.key === initialTab)?.key ?? "report");
   const [logins, setLogins] = useState<string[] | null>(null);
+
+  // Same as the dashboard (components/ParentDashboard.tsx): the open tab is
+  // kept in the address, so a refresh stays on it.
+  function selectTab(next: ChildTab) {
+    setTab(next);
+    const url = new URL(window.location.href);
+    if (next === "report") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", next);
+    window.history.replaceState(window.history.state, "", url);
+  }
 
   useEffect(() => {
     if (tab !== "logins" || logins !== null) return;
@@ -535,26 +567,28 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
         </div>
       </header>
 
-      <PinEditor childId={childId} />
-      {isAdmin && <CategoryWeightsEditor childId={childId} />}
-      {isAdmin && <TimerEditor childId={childId} />}
-      {isAdmin && <ResetActivityButton childId={childId} onDone={refreshLog} />}
-
-      <div className="flex flex-wrap gap-2">
-        {(isAdmin ? (["report", "log", "logins", "history", "periods", "skills", "practice"] as const) : (["report", "log"] as const)).map((t) => (
+      <nav className="sticky top-0 z-10 -mx-4 flex flex-wrap gap-2 bg-brand-50/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
+        {tabs.map((t) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`rounded-full px-4 py-1.5 text-xs font-semibold ${
-              tab === t ? "bg-brand-500 text-white" : "bg-white text-slate-500 ring-1 ring-slate-200"
+            key={t.key}
+            onClick={() => selectTab(t.key)}
+            className={`shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-semibold ${
+              tab === t.key ? "bg-brand-500 text-white" : "bg-white text-slate-500 ring-1 ring-slate-200"
             }`}
           >
-            {t === "report" ? "📊 Report" : t === "log" ? "📋 Full log" : t === "logins" ? "🕒 Last logins" : t === "history" ? "📅 30-day history" : t === "periods" ? "🗂️ 10-day reports" : t === "skills" ? "🧩 Skills" : "🎯 Practice"}
+            {t.label}
           </button>
         ))}
-      </div>
+      </nav>
 
-      {tab === "report" ? (
+      {tab === "settings" ? (
+        <div className="flex flex-col gap-6">
+          <PinEditor childId={childId} />
+          {isAdmin && <CategoryWeightsEditor childId={childId} />}
+          {isAdmin && <TimerEditor childId={childId} />}
+          {isAdmin && <ResetActivityButton childId={childId} onDone={refreshLog} />}
+        </div>
+      ) : tab === "report" ? (
         <ChildReport childId={childId} />
       ) : tab === "skills" ? (
         <SkillMap childId={childId} />
