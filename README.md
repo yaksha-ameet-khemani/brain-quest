@@ -98,10 +98,13 @@ Open http://localhost:3000.
   the answer, not that they remembered seeing this exact question before.
 - Before their first standard round each day, a child with recent wrong
   answers gets a mandatory "checkup" - a short, normally-scored round of
-  DIFFERENT questions on the same skill (a different bank question tagged
-  with the same admin-set concept, or a freshly-generated math question
-  from the same template with new numbers), so getting it right is real
-  evidence of understanding rather than memorizing the exact question.
+  DIFFERENT questions on the same skill (a different bank question at the
+  same level with the same skill tag - from any category, falling back to
+  the same category only if the skill has nothing usable - or a
+  freshly-generated math question from the same template with new
+  numbers), so getting it right is real evidence of understanding rather
+  than memorizing the exact question. Review rounds swap questions the
+  same way.
 - A dashboard badge recognizes daily/weekly play streaks ("🔥 4 day streak
   · 🗓️ 1 week streak") - no extra mechanic, just showing up consistently
   gets noticed.

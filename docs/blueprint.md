@@ -1195,3 +1195,36 @@ rounds are still built exactly as before.
   with `skillsComputedLater` and the `child_reports` rows were confirmed
   unchanged (4 rows, none with a skills key). All four children return 200;
   no cookie returns 401. `tsc`, `eslint` and `npm run build` clean.
+
+**v33 update - checkup and review pick "similar" by skill:** step 3(c) of
+the plan. `pickSimilarBankQuestion()` in `lib/buildRound.ts` - the swap-in
+both checkup and review rounds use for a bank question the child got wrong -
+now looks first for another active question at the same level with the
+same `skill_key`, instead of the same `concept`. `concept` was never set on
+any question, so until now "similar" had always meant just "same level and
+category": for a missed Level 1 measuring question, that's a random pick
+from the 350 Level 1 spatial questions, of which only 14 are about
+measuring.
+
+- **Across categories on purpose.** The skill pool isn't limited to the
+  original's category (a spatial "ordering" question can be swapped for a
+  logic one), because skills were designed to cut across categories.
+  Checkup and review already ignored category weights, so this doesn't
+  change that rule - but it does mean a child with a category weighted to
+  0 can now see that category in a checkup/review when it holds the same
+  skill.
+- **Fallbacks unchanged in shape:** the skill pool is tried first, then the
+  same-category pool, each only if it has a question never shown or shown
+  outside the 48h window; then the least recently shown from both; then the
+  original itself. A thin skill (e.g. fractions at Level 1, 1 question)
+  therefore falls back to the category, as before.
+- **Math unchanged:** a missed generated question is still regenerated from
+  the same template with new numbers - already the same skill.
+- Step (`skill_step`) is not used for picking - the two tagging teams agreed
+  on it only 64% of the time.
+- **Verified** by building Banku's review and checkup rounds from his real
+  history with the production database (building only reads - nothing was
+  saved): across 4 review builds, 20 of 20 swap-ins had the same skill as
+  the question they replaced, never the question itself; checkup gave
+  measuring, rotation, ordering and rotation swap-ins plus a regenerated
+  cost-difference math question. `tsc`, `eslint`, `npm run build` clean.

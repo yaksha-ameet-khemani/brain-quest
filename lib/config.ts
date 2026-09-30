@@ -77,7 +77,7 @@ export const MAX_REVIEW_QUESTIONS = 5;
 // standard round of the day, whenever they have recent wrong answers to
 // recheck - see lib/checkupProgress.ts. Unlike a review round it never
 // replays the exact same question: bank questions are swapped for a
-// different one on the same concept/category, and generated (math)
+// different one on the same skill (falling back to the same category), and generated (math)
 // questions are regenerated from the same template with new numbers. Since
 // getting a genuinely different question right is real evidence of
 // understanding, it IS scored normally (not free practice like review).

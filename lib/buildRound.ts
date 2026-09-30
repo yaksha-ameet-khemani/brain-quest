@@ -199,7 +199,7 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
  */
 export async function buildReviewQuestions(childId: string): Promise<RoundQuestionDraft[]> {
   const rows = await query<QuestionRow>(
-    `SELECT q.id, q.level, q.category, q.question_text, q.options, q.correct_option_index, q.explanation, q.concept, q.is_active, q.created_at
+    `SELECT q.id, q.level, q.category, q.question_text, q.options, q.correct_option_index, q.explanation, q.concept, q.skill_key, q.is_active, q.created_at
      FROM (
        SELECT DISTINCT ON (rq.question_id) rq.question_id, rq.is_correct, rq.answered_at
        FROM round_questions rq
@@ -235,9 +235,13 @@ export async function buildReviewQuestions(childId: string): Promise<RoundQuesti
  * round - same skill, but NOT the same question, since getting the literal
  * question right again would just be memorization/recall rather than real
  * evidence of understanding. Prefers another active question at the same
- * level sharing `original`'s admin-set concept tag; falls back to any other
- * active question in the same category if there's no tagged match (or no
- * tag at all). Returns null if nothing else is available.
+ * level with the same skill (questions.skill_key, lib/skills.ts) - from any
+ * category, since skills cut across categories; falls back to any other
+ * active question in the same category if the skill has nothing usable (or
+ * the question has no skill). Returns null if nothing else is available.
+ * (This used the free-text `concept` tag until the skill map existed; no
+ * question ever had a concept, so "similar" had only ever meant "same
+ * category".)
  *
  * Never hands back a question this child was shown within the last
  * RECENT_QUESTION_WINDOW_HOURS (any round kind): kids remember what they
@@ -253,17 +257,17 @@ async function pickSimilarBankQuestion(
   childId: string
 ): Promise<QuestionRow | null> {
   const pools: QuestionRow[][] = [];
-  if (original.concept) {
-    const byConcept = await query<QuestionRow>(
-      `SELECT id, level, category, question_text, options, correct_option_index, explanation, concept, is_active, created_at
-       FROM questions WHERE level = $1 AND concept = $2 AND is_active = true AND id != $3`,
-      [original.level, original.concept, original.id]
+  if (original.skill_key) {
+    const bySkill = await query<QuestionRow>(
+      `SELECT id, level, category, question_text, options, correct_option_index, explanation, concept, skill_key, is_active, created_at
+       FROM questions WHERE level = $1 AND skill_key = $2 AND is_active = true AND id != $3`,
+      [original.level, original.skill_key, original.id]
     );
-    pools.push(byConcept.filter((q) => !excludeIds.has(q.id)));
+    pools.push(bySkill.filter((q) => !excludeIds.has(q.id)));
   }
 
   const byCategory = await query<QuestionRow>(
-    `SELECT id, level, category, question_text, options, correct_option_index, explanation, concept, is_active, created_at
+    `SELECT id, level, category, question_text, options, correct_option_index, explanation, concept, skill_key, is_active, created_at
      FROM questions WHERE level = $1 AND category = $2 AND is_active = true AND id != $3`,
     [original.level, original.category, original.id]
   );
@@ -283,7 +287,7 @@ async function pickSimilarBankQuestion(
   const lastShownAt = new Map(shown.map((r) => [r.question_id, new Date(r.last_shown_at).getTime()]));
   const cutoffMs = Date.now() - RECENT_QUESTION_WINDOW_HOURS * 60 * 60 * 1000;
 
-  // Concept pool first, then the wider category pool - but only settle for a
+  // Skill pool first, then the wider category pool - but only settle for a
   // pool once it has something outside the recent-memory window.
   for (const pool of pools) {
     const fresh = pickNotRecentlySeen(pool, lastShownAt, cutoffMs, pickRandom);
@@ -300,7 +304,7 @@ type CheckupWrongItem =
  * "checkup" - see lib/checkupProgress.ts for when this is due. Unlike
  * buildReviewQuestions, this never replays the exact question the child
  * got wrong: bank questions are swapped for a different one testing the
- * same concept/category (pickSimilarBankQuestion), and generated (math)
+ * same skill (pickSimilarBankQuestion), and generated (math)
  * questions are regenerated from the same template with new numbers
  * (generateMathQuestionByKey) - so answering correctly this time is real
  * evidence of understanding, not recall. Falls back to literally repeating
@@ -309,7 +313,7 @@ type CheckupWrongItem =
 export async function buildCheckupQuestions(childId: string): Promise<RoundQuestionDraft[]> {
   const wrongBank = await query<QuestionRow & { answered_at: string }>(
     `SELECT q.id, q.level, q.category, q.question_text, q.options, q.correct_option_index, q.explanation,
-            q.concept, q.is_active, q.created_at, latest.answered_at
+            q.concept, q.skill_key, q.is_active, q.created_at, latest.answered_at
      FROM (
        SELECT DISTINCT ON (rq.question_id) rq.question_id, rq.is_correct, rq.answered_at
        FROM round_questions rq
