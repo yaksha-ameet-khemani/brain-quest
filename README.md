@@ -163,6 +163,16 @@ Open http://localhost:3000.
   **permanent**: the database refuses to delete or change them, "reset
   activity" leaves them alone, and deleting a child keeps their reports
   (with the child's name stored in each).
+- Admin-only **"🧩 Skills"** tab per child: every answer from the last 60
+  days sorted into its skill (bank questions by their skill tag, math by its
+  template), each skill marked Not seen / Too few (under 5 answers) /
+  Learning / Guessing (wrong and mostly under 8s) / Solid / Mastered (90%+
+  of the last 10 right, on 8+ different questions), with recent and overall
+  accuracy, rushed wrong answers, timeouts, pauses, median time, and how
+  many bank questions exist for it at the child's level - weak skills with
+  few questions to practise get a ⚠️ "thin in bank" flag. The same skill
+  table (judged only on that period's answers) is in every 10-day report,
+  with skill findings added to the key findings.
 - Requesting a reward takes two taps: "Request" opens an inline "Spend X of
   your Y points on Z? You'll have N left" check, and only "Yes, request it"
   actually spends the points.

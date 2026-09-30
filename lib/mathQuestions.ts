@@ -508,6 +508,12 @@ function templatesFor(level: Level): TemplateEntry[] {
   return level === 1 ? level1Templates : level === 2 ? level2Templates : level3Templates;
 }
 
+/** Keys of every template that can generate at `level` (skill map: which
+ * skills the generator keeps supplied at that level). */
+export function templateKeysFor(level: Level): string[] {
+  return templatesFor(level).map((t) => t.key);
+}
+
 /** Picks a random template for `level` and generates from it, tagging the
  * result with which template produced it - so a wrong answer can later be
  * "rechecked" with a freshly-generated question from that SAME template

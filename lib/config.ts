@@ -107,6 +107,22 @@ export const PERIOD_REPORT_ANCHOR = "2026-09-16";
 // A wrong answer given faster than this is counted as a likely rushed guess.
 export const RUSHED_ANSWER_SECONDS = 8;
 
+// Admin skill map (lib/skillMap.ts): how each child is doing on each skill in
+// lib/skills.ts. A skill isn't judged until it has SKILL_MIN_ANSWERS answers;
+// its state is then read from the last SKILL_RECENT_ANSWERS answers, so old
+// mistakes stop counting once they're outnumbered by newer answers.
+export const SKILL_MAP_WINDOW_DAYS = 60;
+export const SKILL_MIN_ANSWERS = 5;
+export const SKILL_RECENT_ANSWERS = 10;
+export const SKILL_SOLID_PCT = 75;
+export const SKILL_MASTERED_PCT = 90;
+// "Mastered" also needs this many DIFFERENT questions answered right, so
+// remembering one answer can't count as knowing the skill.
+export const SKILL_MASTERED_DISTINCT = 8;
+// A weak skill with fewer active bank questions than this at the child's
+// level (and no math generator behind it) is flagged "thin in bank".
+export const SKILL_THIN_BANK = 20;
+
 // Points are deliberately close across levels: a harder question should feel
 // harder, not pay a wildly different daily wage. See docs/blueprint.md
 // "Point Economics" for the math behind these numbers.

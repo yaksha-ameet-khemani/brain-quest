@@ -1,6 +1,8 @@
 import "server-only";
 import { query, queryOne } from "@/lib/db";
 import { TZ, localDateKey } from "@/lib/timezone";
+import { median } from "@/lib/format";
+import { buildPeriodSkills, skillInsights, type SkillRow } from "@/lib/skillMap";
 import {
   CATEGORIES,
   MIN_ATTEMPTS_FOR_WEAK_SPOT,
@@ -57,6 +59,11 @@ export interface PeriodReport {
   };
   categories: CategoryReport[];
   mathSkills: (Tally & { key: string; label: string })[];
+  // Skill map for the period (lib/skillMap.ts). Missing from reports saved
+  // before skills existed; for those, the report route computes it at view
+  // time from today's tags and sets skillsComputedLater (never saved).
+  skills?: SkillRow[];
+  skillsComputedLater?: boolean;
   days: (Tally & { date: string; rounds: number; logins: number })[];
   missed: { category: string; level: number; text: string; seconds: number | null; timedOut: boolean }[];
   points: { opening: number; earned: number; spent: number; refunded: number; adjusted: number; closing: number };
@@ -86,14 +93,6 @@ export function periodStartFor(key: string): string {
   return addDays(PERIOD_REPORT_ANCHOR, offset * PERIOD_REPORT_DAYS);
 }
 
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const s = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  const m = s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
-  return Math.round(m * 10) / 10;
-}
-
 function pct(t: Tally): number | null {
   return t.answered > 0 ? Math.round((100 * t.correct) / t.answered) : null;
 }
@@ -111,8 +110,9 @@ export async function buildPeriodReport(childId: string, periodStart: string): P
   const inPeriod = (col: string) => `${localDay(col)} BETWEEN $3 AND $4`;
   const args = [childId, TZ, periodStart, periodEnd];
 
-  const [child, answers, rounds, logins, tx, opening, requests] = await Promise.all([
-    queryOne<{ level: number }>("SELECT level FROM children WHERE id = $1", [childId]),
+  const child = await queryOne<{ level: number }>("SELECT level FROM children WHERE id = $1", [childId]);
+  const childLevel = child?.level ?? 1;
+  const [answers, rounds, logins, tx, opening, requests, skills] = await Promise.all([
     query<{
       day: string;
       level: number;
@@ -158,6 +158,7 @@ export async function buildPeriodReport(childId: string, periodStart: string): P
        WHERE child_id = $1 AND ${inPeriod("requested_at")} ORDER BY requested_at`,
       args
     ),
+    buildPeriodSkills(childId, periodStart, periodEnd, childLevel),
   ]);
 
   // ---- per-answer tallies ----
@@ -247,10 +248,11 @@ export async function buildPeriodReport(childId: string, periodStart: string): P
     periodEnd,
     generatedAt: new Date().toISOString(),
     complete: periodEnd < today,
-    childLevel: child?.level ?? 1,
+    childLevel,
     totals,
     categories,
     mathSkills,
+    skills,
     days,
     missed,
     points,
@@ -313,6 +315,8 @@ function buildInsights(r: PeriodReport): string[] {
   if (weak.length) out.push(`Math skills to practise: ${weak.map((s) => `${s.label.toLowerCase()} (${s.correct}/${s.answered})`).join(", ")}.`);
   if (strong.length) out.push(`Math skills mastered: ${strong.map((s) => `${s.label.toLowerCase()} (${s.correct}/${s.answered})`).join(", ")}.`);
 
+  if (r.skills) out.push(...skillInsights(r.skills, r.childLevel));
+
   if (t.timedOut >= 5) {
     const most = [...r.categories].sort((a, b) => b.timedOut - a.timedOut)[0]!;
     out.push(`Ran out of time on ${t.timedOut} questions, most often in ${CATEGORY_LABEL[most.category]} (${most.timedOut}).`);
@@ -368,4 +372,13 @@ export async function getSavedReport(childId: string, periodStart: string): Prom
     [childId, periodStart]
   );
   return row?.data ?? null;
+}
+
+/** A saved report from before the skill map existed gets one computed now,
+ * from its own period's answers and today's skill tags - shown, never saved
+ * (saved reports can't change; see db/migrations/015_child_reports.sql). */
+export async function withSkills(childId: string, report: PeriodReport): Promise<PeriodReport> {
+  if (report.skills) return report;
+  const skills = await buildPeriodSkills(childId, report.periodStart, report.periodEnd, report.childLevel);
+  return { ...report, skills, skillsComputedLater: true };
 }

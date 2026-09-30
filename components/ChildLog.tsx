@@ -10,6 +10,7 @@ import { useAutoRefresh } from "@/components/AutoRefresh";
 import ChildReport from "@/components/ChildReport";
 import PointsHistory from "@/components/PointsHistory";
 import PeriodReports from "@/components/PeriodReports";
+import SkillMap from "@/components/SkillMap";
 import Spinner from "@/components/Spinner";
 
 interface LogEntry {
@@ -470,7 +471,7 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
   const [log, setLog] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "correct" | "wrong">("all");
-  const [tab, setTab] = useState<"report" | "log" | "logins" | "history" | "periods">("report");
+  const [tab, setTab] = useState<"report" | "log" | "logins" | "history" | "periods" | "skills">("report");
   const [logins, setLogins] = useState<string[] | null>(null);
 
   useEffect(() => {
@@ -539,7 +540,7 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
       {isAdmin && <ResetActivityButton childId={childId} onDone={refreshLog} />}
 
       <div className="flex flex-wrap gap-2">
-        {(isAdmin ? (["report", "log", "logins", "history", "periods"] as const) : (["report", "log"] as const)).map((t) => (
+        {(isAdmin ? (["report", "log", "logins", "history", "periods", "skills"] as const) : (["report", "log"] as const)).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -547,13 +548,15 @@ export default function ChildLog({ childId, isAdmin }: { childId: string; isAdmi
               tab === t ? "bg-brand-500 text-white" : "bg-white text-slate-500 ring-1 ring-slate-200"
             }`}
           >
-            {t === "report" ? "📊 Report" : t === "log" ? "📋 Full log" : t === "logins" ? "🕒 Last logins" : t === "history" ? "📅 30-day history" : "🗂️ 10-day reports"}
+            {t === "report" ? "📊 Report" : t === "log" ? "📋 Full log" : t === "logins" ? "🕒 Last logins" : t === "history" ? "📅 30-day history" : t === "periods" ? "🗂️ 10-day reports" : "🧩 Skills"}
           </button>
         ))}
       </div>
 
       {tab === "report" ? (
         <ChildReport childId={childId} />
+      ) : tab === "skills" ? (
+        <SkillMap childId={childId} />
       ) : tab === "periods" ? (
         <PeriodReports childId={childId} />
       ) : tab === "history" ? (

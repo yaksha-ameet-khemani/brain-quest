@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/requireParent";
 import { queryOne } from "@/lib/db";
 import { localDateKey } from "@/lib/timezone";
-import { buildPeriodReport, getSavedReport, periodStartFor } from "@/lib/periodReport";
+import { buildPeriodReport, getSavedReport, periodStartFor, withSkills } from "@/lib/periodReport";
 
 export const dynamic = "force-dynamic";
 
@@ -25,5 +25,5 @@ export async function GET(
 
   const report = /^\d{4}-\d{2}-\d{2}$/.test(periodStart) ? await getSavedReport(childId, periodStart) : null;
   if (!report) return NextResponse.json({ error: "No saved report for that period." }, { status: 404 });
-  return NextResponse.json({ report });
+  return NextResponse.json({ report: await withSkills(childId, report) });
 }

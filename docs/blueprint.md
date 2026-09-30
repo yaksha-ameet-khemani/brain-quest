@@ -1142,3 +1142,56 @@ down; nothing a kid sees changes yet.
   a skill and step, every skill has at least one question, DB 12 MB; 35
   random tags spot-checked by hand. `tsc`, `eslint` and `npm run build`
   clean.
+
+**v32 update - admin skill map per child:** step 3(b) of the plan (3a was
+v31's tagging). The tags now say something about each child: how they're
+doing on every skill, shown to admin only - on a new "🧩 Skills" tab on the
+child page and inside every 10-day report. Nothing kids see changes, and
+rounds are still built exactly as before.
+
+- **One place for the logic:** `lib/skillMap.ts`. An answer's skill is the
+  bank question's *current* `skill_key`, or `MATH_TEMPLATE_SKILL[template_key]`
+  for generated math (`skillOf`). Old rows from before template keys were
+  recorded, with no skill, are skipped (9 of Banku's answers).
+  `summarizeSkills()` is pure (answers in, one row per skill out) so the live
+  tab and the reports share it.
+- **States**, read from the last 10 answers on the skill (tunables in
+  `lib/config.ts`): *Not seen*; *Too few* (under 5 answers - not judged);
+  *Mastered* (90%+ of the last 10 right AND at least 8 **different**
+  questions answered right, so remembering one answer can't count);
+  *Solid* (75%+); *Guessing* (under 75%, with at least 2 of the recent
+  wrong picks, and at least half of them, made in under 8 seconds - the
+  "wrong and fast" pattern seen in Banku's history, where speed was being
+  misread as ease); otherwise *Learning*. Recent-window rather than
+  all-time so an improving child isn't held back by early mistakes.
+  Timeouts count as wrong but never as rushed; paused answers count for
+  accuracy but are left out of the median time (their clock was stopped).
+- **"Thin in bank":** each row also shows how many active bank questions
+  carry the skill at the child's current level, plus "+ math" when a
+  generator template at that level feeds it (`templateKeysFor()` in
+  `lib/mathQuestions.ts`). A skill that is Learning/Guessing, has no
+  generator behind it and fewer than 20 bank questions is flagged ⚠️ - the
+  "what should we add" signal. Banku at Level 1 today: fractions/ratios (1
+  question), measuring (15), clocks and angles (16), folding (18),
+  elimination (11), unknowns (6), trick questions (10).
+- **Live tab:** `GET /api/admin/children/[childId]/skills` (admin-only),
+  last 60 days, `components/SkillMap.tsx`. Skills grouped by the four
+  areas; unseen skills listed in one line per area with their bank counts.
+- **In the 10-day reports:** `PeriodReport.skills` holds the same rows,
+  judged only on that period's answers, and `buildInsights` adds skill
+  findings (to work on / likely guessing / mastered / thin in bank). New
+  saved reports freeze this like everything else. Reports saved **before**
+  this existed (all four 16-25 Sep ones) can't be changed - the table
+  refuses updates by design - so the single-report route computes their
+  skill table at view time (`withSkills`), from that period's answers and
+  today's tags, marked `skillsComputedLater` and labelled as such on the
+  page; it's never written back. This keeps Banku's experiment comparison
+  (16-25 Sep vs 6-15 Oct) possible skill by skill.
+- **Verified** against production data with a forged admin session on a
+  local dev server: Banku's live rows matched hand-run SQL tallies per skill
+  (e.g. rotation/mirrors 8/24 with 6 rushed wrong, shape facts 37/61,
+  measuring 8/20 = bank measuring + rectangle area/perimeter templates,
+  rates 14/22 across four sources). The 16-25 Sep saved report came back
+  with `skillsComputedLater` and the `child_reports` rows were confirmed
+  unchanged (4 rows, none with a skills key). All four children return 200;
+  no cookie returns 401. `tsc`, `eslint` and `npm run build` clean.

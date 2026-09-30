@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { RUSHED_ANSWER_SECONDS } from "@/lib/config";
 import type { PeriodReport, SavedReportSummary, Tally } from "@/lib/periodReport";
+import { SkillTable } from "@/components/SkillMap";
 
 const CATEGORY_LABEL: Record<string, string> = {
   math: "➗ Math",
@@ -124,6 +125,17 @@ function ReportView({ report }: { report: PeriodReport }) {
             head={["Skill", "Answered", "Correct", "%"]}
             rows={report.mathSkills.map((s) => [s.label, s.answered, s.correct, pct(s)])}
           />
+        </Card>
+      )}
+
+      {report.skills && (
+        <Card title="🧩 Skills">
+          <p className="mb-2 text-xs text-slate-500">
+            Judged only on this period&apos;s answers.
+            {report.skillsComputedLater &&
+              " This report was saved before skills existed, so this part is worked out now from today's skill tags (it isn't part of the saved copy)."}
+          </p>
+          <SkillTable rows={report.skills} level={report.childLevel} />
         </Card>
       )}
 

@@ -23,3 +23,12 @@ export function formatRelativeTime(iso: string | null): string {
   if (diffDays < 30) return `${diffDays}d ago`;
   return new Date(iso).toLocaleDateString();
 }
+
+/** Median to one decimal place, or null for an empty list. */
+export function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const s = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  const m = s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
+  return Math.round(m * 10) / 10;
+}
