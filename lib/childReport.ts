@@ -100,10 +100,10 @@ export async function getChildReport(childId: string, level: Level): Promise<Chi
               EXTRACT(EPOCH FROM (rq.answered_at - rq.shown_at)) AS duration_seconds
        FROM round_questions rq
        JOIN rounds r ON r.id = rq.round_id
-       WHERE r.child_id = $1 AND rq.is_correct IS NOT NULL`,
+       WHERE r.child_id = $1 AND r.kind <> 'practice' AND rq.is_correct IS NOT NULL`,
       [childId]
     ),
-    queryOne<{ count: string }>("SELECT count(*) FROM rounds WHERE child_id = $1 AND status = 'completed'", [
+    queryOne<{ count: string }>("SELECT count(*) FROM rounds WHERE child_id = $1 AND status = 'completed' AND kind <> 'practice'", [
       childId,
     ]),
     getStreaks(childId),
@@ -113,14 +113,14 @@ export async function getChildReport(childId: string, level: Level): Promise<Chi
        FROM round_questions rq
        JOIN questions q ON q.id = rq.question_id
        JOIN rounds r ON r.id = rq.round_id
-       WHERE r.child_id = $1 AND rq.source = 'bank' AND q.concept IS NOT NULL AND rq.is_correct IS NOT NULL`,
+       WHERE r.child_id = $1 AND r.kind <> 'practice' AND rq.source = 'bank' AND q.concept IS NOT NULL AND rq.is_correct IS NOT NULL`,
       [childId]
     ),
     query<{ template_key: string; is_correct: boolean }>(
       `SELECT rq.template_key, rq.is_correct
        FROM round_questions rq
        JOIN rounds r ON r.id = rq.round_id
-       WHERE r.child_id = $1 AND rq.source = 'generated' AND rq.template_key IS NOT NULL AND rq.is_correct IS NOT NULL`,
+       WHERE r.child_id = $1 AND r.kind <> 'practice' AND rq.source = 'generated' AND rq.template_key IS NOT NULL AND rq.is_correct IS NOT NULL`,
       [childId]
     ),
   ]);

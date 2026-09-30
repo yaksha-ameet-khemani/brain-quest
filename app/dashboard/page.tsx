@@ -7,6 +7,7 @@ import { getLevelProgress } from "@/lib/levelProgress";
 import { getReviewProgress } from "@/lib/reviewProgress";
 import { getCheckupProgress } from "@/lib/checkupProgress";
 import { getStreaks } from "@/lib/streak";
+import { getAssignedPracticeSets, type PracticeSetProgress } from "@/lib/practice";
 import { LEVELS, MAX_ROUNDS_PER_DAY, type Level } from "@/lib/config";
 import type { ChildRow } from "@/lib/types";
 import KidLogoutButton from "@/components/KidLogoutButton";
@@ -32,6 +33,7 @@ export default async function DashboardPage() {
   const reviewProgress = await getReviewProgress(kid.childId);
   const checkupProgress = await getCheckupProgress(kid.childId);
   const streaks = await getStreaks(kid.childId);
+  const practiceSets = await getAssignedPracticeSets(kid.childId);
 
   return (
     <main className="flex flex-col gap-8 pt-6">
@@ -90,6 +92,10 @@ export default async function DashboardPage() {
         )}
 
         {reviewProgress.wrongQuestionCount > 0 && <ReviewRoundCard progress={reviewProgress} />}
+
+        {practiceSets.map((set) => (
+          <PracticeCard key={set.id} set={set} />
+        ))}
 
         <Link
           href="/rewards"
@@ -167,5 +173,51 @@ function ReviewRoundCard({ progress }: { progress: Awaited<ReturnType<typeof get
       🔁 You&apos;ve used today&apos;s review round - come back tomorrow to try those {progress.wrongQuestionCount}{" "}
       again.
     </div>
+  );
+}
+
+/** Extra practice an admin assigned (lib/practice.ts): every round of the set
+ * as a tile, so the kid can see what's done and what's left. Any round can be
+ * played (or played again) at any time; the first unplayed one is
+ * highlighted. */
+function PracticeCard({ set }: { set: PracticeSetProgress }) {
+  const next = set.rounds.find((r) => r.timesCompleted === 0);
+  const allDone = next === undefined;
+  return (
+    <section className="rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 p-5 shadow-sm ring-1 ring-emerald-200">
+      <p className="text-center text-lg font-bold text-emerald-800">🎯 Want to try extra questions?</p>
+      <p className="mt-1 text-center text-sm text-emerald-700">
+        {set.title} · no points, just practice
+      </p>
+      <p className="mt-3 text-center text-sm font-semibold text-emerald-800">
+        {allDone
+          ? `🌟 All ${set.rounds.length} rounds done! Play any round again to practise more.`
+          : `${set.roundsDone} of ${set.rounds.length} rounds done · ${set.rounds.length - set.roundsDone} to go`}
+      </p>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {set.rounds.map((r) => {
+          const done = r.timesCompleted > 0;
+          const isNext = r.roundNo === next?.roundNo;
+          return (
+            <Link
+              key={r.roundNo}
+              href={`/quiz?mode=practice&set=${set.id}&round=${r.roundNo}`}
+              className={`rounded-xl p-3 text-center text-sm font-semibold shadow-sm active:opacity-80 ${
+                isNext
+                  ? "bg-emerald-500 text-white"
+                  : done
+                    ? "bg-white text-emerald-700 ring-1 ring-emerald-200"
+                    : "bg-white/60 text-slate-500 ring-1 ring-slate-200"
+              }`}
+            >
+              <span className="block">Round {r.roundNo}</span>
+              <span className="block text-xs font-medium">
+                {done ? `✅ ${r.lastCorrect}/${r.questionCount}` : isNext ? "▶ Start" : "Not yet"}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }

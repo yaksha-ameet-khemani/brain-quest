@@ -129,13 +129,13 @@ export async function buildPeriodReport(childId: string, periodStart: string): P
               rq.question_text, rq.is_correct, rq.selected_index, rq.paused,
               EXTRACT(EPOCH FROM rq.answered_at - rq.shown_at) AS seconds
        FROM round_questions rq JOIN rounds r ON r.id = rq.round_id
-       WHERE r.child_id = $1 AND rq.answered_at IS NOT NULL AND ${inPeriod("rq.answered_at")}
+       WHERE r.child_id = $1 AND r.kind <> 'practice' AND rq.answered_at IS NOT NULL AND ${inPeriod("rq.answered_at")}
        ORDER BY rq.answered_at DESC`,
       args
     ),
     query<{ day: string; n: string }>(
       `SELECT ${localDay("completed_at")} AS day, COUNT(*) AS n FROM rounds
-       WHERE child_id = $1 AND status = 'completed' AND ${inPeriod("completed_at")} GROUP BY 1`,
+       WHERE child_id = $1 AND status = 'completed' AND kind <> 'practice' AND ${inPeriod("completed_at")} GROUP BY 1`,
       args
     ),
     query<{ day: string; n: string }>(

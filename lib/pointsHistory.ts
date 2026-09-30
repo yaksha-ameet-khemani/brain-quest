@@ -61,14 +61,14 @@ export async function getPointsHistory(childId: string): Promise<PointsHistory> 
     ),
     query<{ day: string; n: string }>(
       `SELECT ${localDay("completed_at")} AS day, COUNT(*) AS n FROM rounds
-       WHERE child_id = $1 AND status = 'completed' AND ${localDay("completed_at")} >= $3 GROUP BY 1`,
+       WHERE child_id = $1 AND status = 'completed' AND kind <> 'practice' AND ${localDay("completed_at")} >= $3 GROUP BY 1`,
       [childId, TZ, first]
     ),
     query<{ day: string; answered: string; correct: string }>(
       `SELECT ${localDay("rq.answered_at")} AS day, COUNT(*) AS answered,
               COUNT(*) FILTER (WHERE rq.is_correct) AS correct
        FROM round_questions rq JOIN rounds r ON r.id = rq.round_id
-       WHERE r.child_id = $1 AND rq.answered_at IS NOT NULL AND ${localDay("rq.answered_at")} >= $3
+       WHERE r.child_id = $1 AND r.kind <> 'practice' AND rq.answered_at IS NOT NULL AND ${localDay("rq.answered_at")} >= $3
        GROUP BY 1`,
       [childId, TZ, first]
     ),

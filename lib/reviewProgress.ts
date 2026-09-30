@@ -20,6 +20,7 @@ export async function getReviewProgress(childId: string): Promise<ReviewProgress
        FROM round_questions rq
        JOIN rounds r ON r.id = rq.round_id
        WHERE r.child_id = $1
+         AND r.kind <> 'practice'
          AND rq.source = 'bank'
          AND rq.question_id IS NOT NULL
          AND rq.answered_at IS NOT NULL

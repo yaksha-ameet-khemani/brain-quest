@@ -59,12 +59,13 @@ function computeRuns(
 
 /** Daily and weekly play streaks for a child, computed from completed
  * rounds of any kind (standard, bonus-level, or review - showing up and
- * playing at all is the point, not which mode). Mirrors the app's other
+ * playing at all is the point, not which mode) except practice, which is
+ * kept out of everything (lib/practice.ts). Mirrors the app's other
  * day-boundary logic (lib/timezone.ts's localDateKey) rather than a raw UTC
  * calendar day, so a streak lines up with the family's actual day. */
 export async function getStreaks(childId: string): Promise<StreakInfo> {
   const rows = await query<{ started_at: string }>(
-    "SELECT started_at FROM rounds WHERE child_id = $1 AND status = 'completed' ORDER BY started_at ASC",
+    "SELECT started_at FROM rounds WHERE child_id = $1 AND status = 'completed' AND kind <> 'practice' ORDER BY started_at ASC",
     [childId]
   );
   const dayKeys = Array.from(new Set(rows.map((r) => localDateKey(new Date(r.started_at))))).sort();

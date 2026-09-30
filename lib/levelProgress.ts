@@ -55,7 +55,7 @@ export async function getLevelProgress(childId: string, baseLevel: Level): Promi
     // Count every started round at the bonus level today, same policy as
     // the base daily limit - an abandoned attempt still used up a shot.
     const bonusRounds = await query<{ id: string }>(
-      "SELECT id FROM rounds WHERE child_id = $1 AND level = $2 AND started_at >= $3 AND started_at < $4",
+      "SELECT id FROM rounds WHERE child_id = $1 AND level = $2 AND kind <> 'practice' AND started_at >= $3 AND started_at < $4",
       [childId, bonusLevel, startIso, endIso]
     );
     bonusRoundsUsedToday = bonusRounds.length;

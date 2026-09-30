@@ -48,6 +48,7 @@ export async function GET() {
     skillKey: r.skill_key,
     skillStep: r.skill_step,
     isActive: r.is_active,
+    inRotation: r.in_rotation,
     attempts: Number(r.attempts),
     correct: Number(r.correct),
     successRate: Number(r.attempts) > 0 ? Number(r.correct) / Number(r.attempts) : null,

@@ -73,7 +73,7 @@ export function skillOf(questionSkill: string | null, templateKey: string | null
 export async function loadSkillSupply(level: number): Promise<SkillSupply> {
   const rows = await query<{ skill_key: string; n: string }>(
     `SELECT skill_key, COUNT(*) AS n FROM questions
-     WHERE is_active AND level = $1 AND skill_key IS NOT NULL GROUP BY 1`,
+     WHERE is_active AND in_rotation AND level = $1 AND skill_key IS NOT NULL GROUP BY 1`,
     [level]
   );
   const templates = [1, 2, 3].includes(level) ? templateKeysFor(level as Level) : [];
@@ -206,7 +206,7 @@ async function loadSkillAnswers(where: string, args: unknown[]): Promise<SkillAn
             EXTRACT(EPOCH FROM rq.answered_at - rq.shown_at) AS seconds
      FROM round_questions rq JOIN rounds r ON r.id = rq.round_id
      LEFT JOIN questions q ON q.id = rq.question_id
-     WHERE rq.answered_at IS NOT NULL AND ${where}
+     WHERE rq.answered_at IS NOT NULL AND r.kind <> 'practice' AND ${where}
      ORDER BY rq.answered_at DESC`,
     args
   );

@@ -100,7 +100,7 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
   const wantedCategories = pickWeightedCategories(weights, QUESTIONS_PER_ROUND);
 
   const bankRows = await query<QuestionRow>(
-    "SELECT id, category, question_text, options, correct_option_index, explanation FROM questions WHERE level = $1 AND is_active = true",
+    "SELECT id, category, question_text, options, correct_option_index, explanation FROM questions WHERE level = $1 AND is_active = true AND in_rotation = true",
     [level]
   );
   const bankByCategory = new Map<BankCategory, QuestionRow[]>(BANK_CATEGORIES.map((c) => [c, []]));
@@ -205,6 +205,7 @@ export async function buildReviewQuestions(childId: string): Promise<RoundQuesti
        FROM round_questions rq
        JOIN rounds r ON r.id = rq.round_id
        WHERE r.child_id = $1
+         AND r.kind <> 'practice'
          AND rq.source = 'bank'
          AND rq.question_id IS NOT NULL
          AND rq.answered_at IS NOT NULL
@@ -260,7 +261,7 @@ async function pickSimilarBankQuestion(
   if (original.skill_key) {
     const bySkill = await query<QuestionRow>(
       `SELECT id, level, category, question_text, options, correct_option_index, explanation, concept, skill_key, is_active, created_at
-       FROM questions WHERE level = $1 AND skill_key = $2 AND is_active = true AND id != $3`,
+       FROM questions WHERE level = $1 AND skill_key = $2 AND is_active = true AND in_rotation = true AND id != $3`,
       [original.level, original.skill_key, original.id]
     );
     pools.push(bySkill.filter((q) => !excludeIds.has(q.id)));
@@ -268,7 +269,7 @@ async function pickSimilarBankQuestion(
 
   const byCategory = await query<QuestionRow>(
     `SELECT id, level, category, question_text, options, correct_option_index, explanation, concept, skill_key, is_active, created_at
-     FROM questions WHERE level = $1 AND category = $2 AND is_active = true AND id != $3`,
+     FROM questions WHERE level = $1 AND category = $2 AND is_active = true AND in_rotation = true AND id != $3`,
     [original.level, original.category, original.id]
   );
   const categoryPool = byCategory.filter((q) => !excludeIds.has(q.id));
@@ -318,7 +319,7 @@ export async function buildCheckupQuestions(childId: string): Promise<RoundQuest
        SELECT DISTINCT ON (rq.question_id) rq.question_id, rq.is_correct, rq.answered_at
        FROM round_questions rq
        JOIN rounds r ON r.id = rq.round_id
-       WHERE r.child_id = $1 AND rq.source = 'bank' AND rq.question_id IS NOT NULL AND rq.answered_at IS NOT NULL
+       WHERE r.child_id = $1 AND r.kind <> 'practice' AND rq.source = 'bank' AND rq.question_id IS NOT NULL AND rq.answered_at IS NOT NULL
        ORDER BY rq.question_id, rq.answered_at DESC
      ) latest
      JOIN questions q ON q.id = latest.question_id
@@ -333,7 +334,7 @@ export async function buildCheckupQuestions(childId: string): Promise<RoundQuest
        SELECT DISTINCT ON (rq.template_key) rq.template_key, rq.is_correct, rq.answered_at, r.level
        FROM round_questions rq
        JOIN rounds r ON r.id = rq.round_id
-       WHERE r.child_id = $1 AND rq.source = 'generated' AND rq.template_key IS NOT NULL AND rq.answered_at IS NOT NULL
+       WHERE r.child_id = $1 AND r.kind <> 'practice' AND rq.source = 'generated' AND rq.template_key IS NOT NULL AND rq.answered_at IS NOT NULL
        ORDER BY rq.template_key, rq.answered_at DESC
      ) t
      WHERE t.is_correct = false

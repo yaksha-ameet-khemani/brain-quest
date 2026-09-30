@@ -16,12 +16,15 @@ interface Question {
   questionText: string;
   options: string[];
   shownAt: string;
+  timeLimitSeconds?: number; // this question's own countdown, when it differs by question (practice rounds)
+  questionLevel: Level | null; // set only in practice rounds, which mix levels
 }
 
 interface RoundStart {
   roundId: string;
   level: Level;
-  kind: "standard" | "review" | "checkup";
+  kind: "standard" | "review" | "checkup" | "practice";
+  practiceRoundNo: number | null;
   totalQuestions: number;
   timeLimitSeconds: number;
   explainSeconds: number;
@@ -64,6 +67,8 @@ function QuizPageInner() {
   const searchParams = useSearchParams();
   const requestedLevel = searchParams.get("level");
   const reviewMode = searchParams.get("mode") === "review";
+  const practiceSetId = searchParams.get("mode") === "practice" ? searchParams.get("set") : null;
+  const practiceRoundNo = searchParams.get("round");
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<string | null>(null);
   const [round, setRound] = useState<RoundStart | null>(null);
@@ -105,7 +110,13 @@ function QuizPageInner() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
-            reviewMode ? { mode: "review" } : requestedLevel ? { level: Number(requestedLevel) } : {}
+            practiceSetId
+              ? { mode: "practice", setId: practiceSetId, roundNo: Number(practiceRoundNo) }
+              : reviewMode
+                ? { mode: "review" }
+                : requestedLevel
+                  ? { level: Number(requestedLevel) }
+                  : {}
           ),
         });
         const data = await res.json();
@@ -118,7 +129,7 @@ function QuizPageInner() {
         setRound(start);
         setQuestion(start.question);
         setPhase("question");
-        startTimer(start.timeLimitSeconds);
+        startTimer(start.question.timeLimitSeconds ?? start.timeLimitSeconds);
       } catch {
         setError("Network error starting the round.");
         setPhase("error");
@@ -127,7 +138,7 @@ function QuizPageInner() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [startTimer, requestedLevel, reviewMode]);
+  }, [startTimer, requestedLevel, reviewMode, practiceSetId, practiceRoundNo]);
 
   // Auto-submit as a miss once the timer hits zero, so a kid who freezes up
   // still sees the explanation instead of being stuck. Skipped once paused -
@@ -242,7 +253,7 @@ function QuizPageInner() {
       }
       setQuestion(data.question);
       setPhase("question");
-      startTimer(round.timeLimitSeconds);
+      startTimer(data.question.timeLimitSeconds ?? round.timeLimitSeconds);
     } catch {
       setError("Network error loading the next question.");
       setPhase("error");
@@ -271,6 +282,25 @@ function QuizPageInner() {
           Back to dashboard
         </Link>
       </CenteredMessage>
+    );
+  }
+
+  if (phase === "done" && result && round?.kind === "practice") {
+    return (
+      <main className="flex flex-col items-center gap-6 pt-16 text-center">
+        <p className="text-6xl">{result.correctCount === round.totalQuestions ? "🌟" : "🎯"}</p>
+        <h1 className="text-2xl font-bold">Practice round {round.practiceRoundNo} done!</h1>
+        <p className="text-slate-600">
+          {result.correctCount} / {round.totalQuestions} correct
+        </p>
+        <p className="text-sm text-slate-500">Practice only - no points, just getting better.</p>
+        <button
+          onClick={() => goTo("/dashboard")}
+          className="mt-4 rounded-full bg-emerald-500 px-6 py-3 font-medium text-white"
+        >
+          🎯 Back to my practice rounds
+        </button>
+      </main>
     );
   }
 
@@ -386,6 +416,12 @@ function QuizPageInner() {
         </p>
       )}
 
+      {round.kind === "practice" && (
+        <p className="rounded-xl bg-emerald-50 px-3 py-2 text-center text-sm font-medium text-emerald-700 ring-1 ring-emerald-200">
+          🎯 Practice round {round.practiceRoundNo} - no points, just practice
+        </p>
+      )}
+
       {round.kind === "checkup" && (
         <p className="rounded-xl bg-violet-50 px-3 py-2 text-center text-sm font-medium text-violet-700 ring-1 ring-violet-200">
           🧠 Quick checkup - similar to one you missed before. This one counts!
@@ -395,6 +431,7 @@ function QuizPageInner() {
       <div className="flex items-center justify-between gap-2">
         <span className="rounded-full bg-white px-3 py-1 text-sm font-medium text-slate-500 ring-1 ring-slate-100">
           {CATEGORY_LABEL[question.category] ?? question.category}
+          {question.questionLevel && ` · Level ${question.questionLevel}`}
         </span>
         <div className="flex items-center gap-2">
           <SoundToggle />
@@ -430,14 +467,14 @@ function QuizPageInner() {
 
       {paused ? (
         <p className="text-center text-xs font-medium text-slate-400">
-          ⏸ Timer paused - take your time. This one won&apos;t earn points.
+          ⏸ Timer paused - take your time.{round.kind === "practice" ? "" : " This one won't earn points."}
         </p>
       ) : (
         <button
           onClick={pauseTimer}
           className="self-center rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-500 shadow-sm ring-1 ring-slate-200"
         >
-          ⏸ Pause timer (no points this one)
+          {round.kind === "practice" ? "⏸ Pause timer" : "⏸ Pause timer (no points this one)"}
         </button>
       )}
     </main>

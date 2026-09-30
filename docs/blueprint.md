@@ -1228,3 +1228,60 @@ measuring.
   the question they replaced, never the question itself; checkup gave
   measuring, rotation, ordering and rotation swap-ins plus a regenerated
   cost-difference math question. `tsc`, `eslint`, `npm run build` clean.
+
+**v34 update - practice sets (extra, unscored practice an admin assigns):**
+Banku had a logic assessment at school the next day, so the user asked for
+30 Level 1 + 30 Level 2 logic questions that an admin can assign to a
+specific kid, played from a "Want to try extra questions?" card with the
+normal quiz screen (timer, answer, explanation) but no marks, and kept in
+the main question bank for later use (e.g. tutorials).
+
+- **Content:** 60 new questions, written for this (none reused), across the
+  reasoning skills: patterns, ordering, odd one out/analogies, if-then and
+  family relations, truth/lies and all/some logic, who-has-what, codes,
+  counting and one lateral puzzle. A validator script checked structure,
+  skill keys, 5 L1 + 5 L2 per round and duplicates against all 3,150 bank
+  questions (exact, and word-overlap near-duplicates): 1 exact and 3 near
+  duplicates in the first draft were replaced.
+- **Schema** (`db/migrations/018_practice_sets.sql`, applied 2026-09-30):
+  `practice_sets`, `practice_set_questions` (fixed `round_no` + `position`,
+  so a replayed round has the same questions and a kid sees "round 3 of
+  6"), `practice_assignments` (set x child), `rounds.kind = 'practice'` with
+  `practice_set_id`/`practice_round_no`, and `questions.in_rotation`. The 60
+  questions are in `questions` like any other, with `in_rotation = false`:
+  standard/bonus rounds and the checkup/review swap-in pools only use
+  questions in rotation, and the skill map's "thin in bank" count ignores
+  them. The Question Bank page shows them as "🎯 Practice only".
+- **Rounds:** "Logic practice 1" is 6 rounds of 10 - positions 0-4 Level 1,
+  5-9 Level 2 (the user's choice). Because a round mixes levels, each
+  question carries its own timer (`lib/practice.ts` `questionTiming`: that
+  question's level default, or the child's override as usual) and its level
+  is shown next to the category. Any round can be played or replayed at any
+  time, with no daily limit and no checkup first. An unfinished practice
+  round is resumed only when that same round is asked for again; otherwise
+  it is abandoned (it costs nothing), so it never blocks a normal round.
+- **No marks, kept separate (the user's choice):** the answer route treats
+  practice like review (no points, no penalty, no streak/perfect bonus).
+  Practice rounds are filtered out of the full log, parent overview and
+  Report tab, 10-day reports, skill map, 30-day history, family activity,
+  streaks, level progress, checkup and review - so, for example, Banku's
+  math/spatial-only experiment (until 15 Oct) isn't mixed with 60 logic
+  answers, and wrong practice answers never trigger a checkup.
+- **Admin:** "🎯 Practice" tab on the child page (`components/
+  PracticeSets.tsx`, `GET/PUT/DELETE /api/admin/children/[childId]/
+  practice`): assign/unassign each set, per-round latest/best score, and
+  every practice answer (picked vs correct, time). Unassigning only hides
+  the set; answers stay. Parents don't see the tab.
+- Backups include the three new tables.
+- **Verified** against the production database with a throwaway parent and
+  child (deleted afterwards) through a local dev server and forged session
+  cookies: unassigned set refused (403) and kid cookie refused on the admin
+  route (401); after assigning, round 1 served 10 questions with levels
+  1,1,1,1,1,2,2,2,2,2 and timers 45s x5 then 90s x5, no answer leaked
+  before answering, every answer 0 points, 6/10 recorded, balance 0 and no
+  ledger rows; log, skill map, 30-day history and Report tab all empty;
+  no checkup or review triggered; admin tab showed 1 of 6 done, 6/10 and
+  10 answers; same-round resume and different-round abandon both worked; a
+  standard round afterwards had no practice-only questions and a normal
+  45s timer. Dashboard card, quiz banner and feedback screen checked in
+  the browser. `tsc`, `eslint`, `npm run build` clean.

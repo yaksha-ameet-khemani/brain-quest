@@ -55,7 +55,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ childId
        EXTRACT(EPOCH FROM (rq.answered_at - rq.shown_at)) AS duration_seconds
      FROM round_questions rq
      JOIN rounds r ON r.id = rq.round_id
-     WHERE r.child_id = $1 AND rq.answered_at IS NOT NULL
+     WHERE r.child_id = $1 AND r.kind <> 'practice' AND rq.answered_at IS NOT NULL
      ORDER BY rq.answered_at DESC
      LIMIT 300`,
     [childId]

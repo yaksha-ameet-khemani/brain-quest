@@ -51,6 +51,7 @@ export interface QuestionRow {
   skill_key: string | null; // lib/skills.ts
   skill_step: 1 | 2 | 3 | null;
   is_active: boolean;
+  in_rotation: boolean; // false = only served through a practice set (lib/practice.ts)
   created_at: string;
 }
 
@@ -58,12 +59,14 @@ export interface RoundRow {
   id: string;
   child_id: string;
   level: Level;
-  kind: "standard" | "review" | "checkup";
+  kind: "standard" | "review" | "checkup" | "practice";
   status: "in_progress" | "completed" | "abandoned";
   correct_count: number;
   points_awarded: number;
   started_at: string;
   completed_at: string | null;
+  practice_set_id: string | null; // kind = 'practice' only - see lib/practice.ts
+  practice_round_no: number | null;
 }
 
 export interface RoundQuestionRow {

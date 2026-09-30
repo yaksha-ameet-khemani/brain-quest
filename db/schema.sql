@@ -119,9 +119,39 @@ create table questions (
   skill_key text references skills (key), -- the one skill it mainly tests; see lib/skills.ts
   skill_step smallint check (skill_step between 1 and 3), -- 1 easier / 2 typical / 3 harder than typical for its level
   is_active boolean not null default true,
+  in_rotation boolean not null default true, -- false = only served through a practice set, never in normal rounds
   created_at timestamptz not null default now()
 );
 create index questions_skill_key_idx on questions (skill_key);
+
+-- ---------------------------------------------------------------------------
+-- Practice sets (lib/practice.ts): named groups of bank questions an admin
+-- assigns to a child as extra, unscored practice, split into fixed rounds so
+-- a kid sees "round 3 of 6". Practice rounds (rounds.kind = 'practice') are
+-- kept out of every report, the skill map, streaks, checkup and review.
+-- ---------------------------------------------------------------------------
+create table practice_sets (
+  id uuid primary key default gen_random_uuid(),
+  title text not null unique,
+  description text,
+  created_at timestamptz not null default now()
+);
+
+create table practice_set_questions (
+  set_id uuid not null references practice_sets (id) on delete cascade,
+  question_id uuid not null references questions (id),
+  round_no smallint not null check (round_no >= 1),
+  position smallint not null check (position >= 0),
+  primary key (set_id, question_id),
+  unique (set_id, round_no, position)
+);
+
+create table practice_assignments (
+  set_id uuid not null references practice_sets (id) on delete cascade,
+  child_id uuid not null references children (id) on delete cascade,
+  assigned_at timestamptz not null default now(),
+  primary key (set_id, child_id)
+);
 
 -- ---------------------------------------------------------------------------
 -- Rounds: one quiz attempt of QUESTIONS_PER_ROUND questions.
@@ -130,12 +160,14 @@ create table rounds (
   id uuid primary key default gen_random_uuid(),
   child_id uuid not null references children (id) on delete cascade,
   level smallint not null check (level in (1, 2, 3)),
-  kind text not null default 'standard' check (kind in ('standard', 'review', 'checkup')), -- 'review' = replaying past wrong answers for practice, never for points; 'checkup' = a mandatory pre-round recheck using DIFFERENT questions on the same skill, scored normally
+  kind text not null default 'standard' check (kind in ('standard', 'review', 'checkup', 'practice')), -- 'review' = replaying past wrong answers for practice, never for points; 'checkup' = a mandatory pre-round recheck using DIFFERENT questions on the same skill, scored normally; 'practice' = one round of an assigned practice set, never scored
   status text not null default 'in_progress' check (status in ('in_progress', 'completed', 'abandoned')),
   correct_count smallint not null default 0,
   points_awarded int not null default 0,
   started_at timestamptz not null default now(),
-  completed_at timestamptz
+  completed_at timestamptz,
+  practice_set_id uuid references practice_sets (id) on delete set null, -- kind = 'practice' only
+  practice_round_no smallint -- kind = 'practice' only
 );
 create index rounds_child_started_idx on rounds (child_id, started_at);
 

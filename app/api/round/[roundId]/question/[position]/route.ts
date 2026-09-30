@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { requireKid } from "@/lib/requireKid";
 import { sanitizeQuestion } from "@/lib/sanitizeQuestion";
-import type { RoundQuestionRow, RoundRow } from "@/lib/types";
+import { questionTiming } from "@/lib/practice";
+import type { ChildRow, RoundQuestionRow, RoundRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +15,8 @@ export async function GET(
   const kid = await requireKid();
   if (!kid) return NextResponse.json({ error: "Sign-in required." }, { status: 401 });
 
-  const round = await queryOne<Pick<RoundRow, "id" | "child_id" | "status">>(
-    "SELECT id, child_id, status FROM rounds WHERE id = $1",
+  const round = await queryOne<Pick<RoundRow, "id" | "child_id" | "status" | "kind" | "level">>(
+    "SELECT id, child_id, status, kind, level FROM rounds WHERE id = $1",
     [roundId]
   );
   if (!round || round.child_id !== kid.childId) {
@@ -52,13 +53,22 @@ export async function GET(
     pos,
   ]);
 
+  const child = await queryOne<Pick<ChildRow, "answer_seconds">>(
+    "SELECT answer_seconds FROM children WHERE id = $1",
+    [kid.childId]
+  );
+  const timing = await questionTiming(round, pos, child?.answer_seconds ?? null);
+
   return NextResponse.json({
-    question: sanitizeQuestion({
-      position: nextUnanswered.position,
-      category: nextUnanswered.category,
-      question_text: nextUnanswered.question_text,
-      options: nextUnanswered.options,
-      shown_at: shownAt,
-    }),
+    question: sanitizeQuestion(
+      {
+        position: nextUnanswered.position,
+        category: nextUnanswered.category,
+        question_text: nextUnanswered.question_text,
+        options: nextUnanswered.options,
+        shown_at: shownAt,
+      },
+      timing
+    ),
   });
 }

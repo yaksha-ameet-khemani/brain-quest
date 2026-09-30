@@ -176,6 +176,18 @@ Open http://localhost:3000.
   few questions to practise get a ⚠️ "thin in bank" flag. The same skill
   table (judged only on that period's answers) is in every 10-day report,
   with skill findings added to the key findings.
+- Admin-only **"🎯 Practice"** tab per child: assign a **practice set** -
+  a named group of bank questions split into fixed rounds of 10 (the first,
+  "Logic practice 1", is 60 logic questions: 6 rounds of 5 Level 1 + 5
+  Level 2). The kid gets a "🎯 Want to try extra questions?" card on their
+  dashboard with a tile per round (done with score / next / not yet); any
+  round can be played or replayed at any time, with the normal quiz screen
+  (per-question timer by that question's level, pause, explanation) but no
+  points. The tab shows per-round scores and every practice answer. Practice
+  rounds are left out of the log, reports, 10-day reports, skill map,
+  30-day history, streaks, checkup and review. Practice questions live in
+  the main bank (marked "🎯 Practice only") but stay out of normal rounds
+  (`questions.in_rotation = false`).
 - Requesting a reward takes two taps: "Request" opens an inline "Spend X of
   your Y points on Z? You'll have N left" check, and only "Yes, request it"
   actually spends the points.

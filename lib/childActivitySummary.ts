@@ -64,6 +64,7 @@ export async function getChildActivitySummary(): Promise<ChildActivitySummary[]>
         ) AS total_time_seconds
       FROM round_questions rq
       JOIN rounds r ON r.id = rq.round_id
+      WHERE r.kind <> 'practice'
       GROUP BY r.child_id
     ) stats ON stats.child_id = c.id
     ORDER BY c.created_at ASC

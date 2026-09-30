@@ -19,6 +19,7 @@ interface BankQuestion {
   skillKey: string | null;
   skillStep: 1 | 2 | 3 | null;
   isActive: boolean;
+  inRotation: boolean;
   attempts: number;
   correct: number;
   successRate: number | null;
@@ -369,6 +370,14 @@ export default function QuestionBank() {
                     {!q.isActive && (
                       <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-600">
                         Archived
+                      </span>
+                    )}
+                    {!q.inRotation && (
+                      <span
+                        className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700"
+                        title="Only served through a practice set, never in normal rounds"
+                      >
+                        🎯 Practice only
                       </span>
                     )}
                   </div>

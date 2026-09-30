@@ -7,11 +7,11 @@ import { todayRangeUtc } from "@/lib/timezone";
 import { getLevelProgress } from "@/lib/levelProgress";
 import { getReviewProgress } from "@/lib/reviewProgress";
 import { getCheckupProgress } from "@/lib/checkupProgress";
+import { buildPracticeRoundQuestions, isPracticeSetAssigned, questionTiming } from "@/lib/practice";
 import {
   BONUS_ROUNDS_PER_DAY,
   MAX_ROUNDS_PER_DAY,
   QUESTIONS_PER_ROUND,
-  effectiveAnswerSeconds,
   effectiveExplainSeconds,
   type Level,
 } from "@/lib/config";
@@ -32,13 +32,32 @@ export async function POST(req: Request) {
   const answerSeconds = child.answer_seconds;
   const explainSeconds = child.explain_seconds;
 
+  const body = await req.json().catch(() => null);
+  const requestedLevel: number | undefined = body?.level;
+  const mode: string | undefined = body?.mode;
+  const practiceSetId: string | undefined = typeof body?.setId === "string" ? body.setId : undefined;
+  const practiceRoundNo: number | undefined = Number.isInteger(body?.roundNo) ? body.roundNo : undefined;
+
   // Resume an existing in-progress round rather than starting a new one -
   // so closing the browser mid-quiz doesn't lose progress or burn a daily slot.
-  const existingRound = await queryOne<Pick<RoundRow, "id" | "level" | "kind">>(
-    `SELECT id, level, kind FROM rounds WHERE child_id = $1 AND status = 'in_progress'
+  let existingRound = await queryOne<
+    Pick<RoundRow, "id" | "level" | "kind" | "practice_set_id" | "practice_round_no">
+  >(
+    `SELECT id, level, kind, practice_set_id, practice_round_no FROM rounds WHERE child_id = $1 AND status = 'in_progress'
      ORDER BY started_at DESC LIMIT 1`,
     [kid.childId]
   );
+
+  // An unfinished practice round is only resumed when that same practice
+  // round is asked for again. Otherwise it's dropped - it costs nothing - so
+  // it never gets in the way of a normal round or a different practice round.
+  if (
+    existingRound?.kind === "practice" &&
+    !(mode === "practice" && existingRound.practice_set_id === practiceSetId && existingRound.practice_round_no === practiceRoundNo)
+  ) {
+    await queryOne("UPDATE rounds SET status = 'abandoned' WHERE id = $1", [existingRound.id]);
+    existingRound = null;
+  }
 
   if (existingRound) {
     const payload = await loadRoundForResume(existingRound.id, answerSeconds, explainSeconds);
@@ -49,9 +68,21 @@ export async function POST(req: Request) {
     await queryOne("UPDATE rounds SET status = 'abandoned' WHERE id = $1", [existingRound.id]);
   }
 
-  const body = await req.json().catch(() => null);
-  const requestedLevel: number | undefined = body?.level;
-  const mode: string | undefined = body?.mode;
+  // Extra practice an admin assigned (lib/practice.ts): never scored, no
+  // daily limit, and it skips the checkup - it isn't a normal round.
+  if (mode === "practice") {
+    if (!practiceSetId || practiceRoundNo === undefined || !(await isPracticeSetAssigned(kid.childId, practiceSetId))) {
+      return NextResponse.json({ error: "That practice set isn't assigned to you." }, { status: 403 });
+    }
+    const drafts = await buildPracticeRoundQuestions(practiceSetId, practiceRoundNo);
+    if (drafts.length === 0) {
+      return NextResponse.json({ error: "That practice round doesn't exist." }, { status: 404 });
+    }
+    return createRound(kid.childId, baseLevel, "practice", drafts, answerSeconds, explainSeconds, {
+      setId: practiceSetId,
+      roundNo: practiceRoundNo,
+    });
+  }
 
   if (mode === "review") {
     const reviewProgress = await getReviewProgress(kid.childId);
@@ -131,15 +162,16 @@ export async function POST(req: Request) {
 async function createRound(
   childId: string,
   level: Level,
-  kind: "standard" | "review" | "checkup",
+  kind: RoundRow["kind"],
   drafts: Awaited<ReturnType<typeof buildRoundQuestions>>,
   answerSecondsOverride: number | null,
-  explainSecondsOverride: number | null
+  explainSecondsOverride: number | null,
+  practice?: { setId: string; roundNo: number }
 ) {
   const created = await withTransaction(async (tx) => {
     const roundResult = await tx.query(
-      "INSERT INTO rounds (child_id, level, kind) VALUES ($1, $2, $3) RETURNING id",
-      [childId, level, kind]
+      "INSERT INTO rounds (child_id, level, kind, practice_set_id, practice_round_no) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+      [childId, level, kind, practice?.setId ?? null, practice?.roundNo ?? null]
     );
     const roundId = roundResult.rows[0].id as string;
 
@@ -175,20 +207,25 @@ async function createRound(
     return NextResponse.json({ error: "Could not build round questions." }, { status: 500 });
   }
 
+  const timing = await questionTiming({ id: created.roundId, kind, level }, 0, answerSecondsOverride);
   return NextResponse.json({
     roundId: created.roundId,
     level,
     kind,
+    practiceRoundNo: practice?.roundNo ?? null,
     totalQuestions: drafts.length,
-    timeLimitSeconds: effectiveAnswerSeconds(level, answerSecondsOverride),
+    timeLimitSeconds: timing.timeLimitSeconds,
     explainSeconds: effectiveExplainSeconds(explainSecondsOverride),
-    question: sanitizeQuestion({
-      position: 0,
-      category: created.firstRow.category,
-      question_text: created.firstRow.question_text,
-      options: created.firstRow.options,
-      shown_at: created.firstRow.shown_at,
-    }),
+    question: sanitizeQuestion(
+      {
+        position: 0,
+        category: created.firstRow.category,
+        question_text: created.firstRow.question_text,
+        options: created.firstRow.options,
+        shown_at: created.firstRow.shown_at,
+      },
+      timing
+    ),
   });
 }
 
@@ -197,8 +234,8 @@ async function loadRoundForResume(
   answerSecondsOverride: number | null,
   explainSecondsOverride: number | null
 ) {
-  const round = await queryOne<Pick<RoundRow, "id" | "level" | "kind">>(
-    "SELECT id, level, kind FROM rounds WHERE id = $1",
+  const round = await queryOne<Pick<RoundRow, "id" | "level" | "kind" | "practice_round_no">>(
+    "SELECT id, level, kind, practice_round_no FROM rounds WHERE id = $1",
     [roundId]
   );
   if (!round) return null;
@@ -235,19 +272,24 @@ async function loadRoundForResume(
   ]);
 
   const level = round.level as Level;
+  const timing = await questionTiming(round, nextQ.position, answerSecondsOverride);
   return {
     roundId: round.id,
     level,
     kind: round.kind,
+    practiceRoundNo: round.practice_round_no,
     totalQuestions,
-    timeLimitSeconds: effectiveAnswerSeconds(level, answerSecondsOverride),
+    timeLimitSeconds: timing.timeLimitSeconds,
     explainSeconds: effectiveExplainSeconds(explainSecondsOverride),
-    question: sanitizeQuestion({
-      position: nextQ.position,
-      category: nextQ.category,
-      question_text: nextQ.question_text,
-      options: nextQ.options,
-      shown_at: shownAt,
-    }),
+    question: sanitizeQuestion(
+      {
+        position: nextQ.position,
+        category: nextQ.category,
+        question_text: nextQ.question_text,
+        options: nextQ.options,
+        shown_at: shownAt,
+      },
+      timing
+    ),
   };
 }

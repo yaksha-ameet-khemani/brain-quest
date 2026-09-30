@@ -43,7 +43,7 @@ export async function GET() {
       const balance = await getBalance(child.id);
 
       const rounds = await query<{ id: string; status: string }>(
-        "SELECT id, status FROM rounds WHERE child_id = $1",
+        "SELECT id, status FROM rounds WHERE child_id = $1 AND kind <> 'practice'",
         [child.id]
       );
       const roundsPlayed = rounds.filter((r) => r.status === "completed").length;

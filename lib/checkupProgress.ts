@@ -18,7 +18,7 @@ export async function getCheckupProgress(childId: string): Promise<CheckupProgre
        SELECT DISTINCT ON (rq.question_id) rq.question_id, rq.is_correct
        FROM round_questions rq
        JOIN rounds r ON r.id = rq.round_id
-       WHERE r.child_id = $1 AND rq.source = 'bank' AND rq.question_id IS NOT NULL AND rq.answered_at IS NOT NULL
+       WHERE r.child_id = $1 AND r.kind <> 'practice' AND rq.source = 'bank' AND rq.question_id IS NOT NULL AND rq.answered_at IS NOT NULL
        ORDER BY rq.question_id, rq.answered_at DESC
      ) latest
      JOIN questions q ON q.id = latest.question_id
@@ -31,7 +31,7 @@ export async function getCheckupProgress(childId: string): Promise<CheckupProgre
        SELECT DISTINCT ON (rq.template_key) rq.template_key, rq.is_correct
        FROM round_questions rq
        JOIN rounds r ON r.id = rq.round_id
-       WHERE r.child_id = $1 AND rq.source = 'generated' AND rq.template_key IS NOT NULL AND rq.answered_at IS NOT NULL
+       WHERE r.child_id = $1 AND r.kind <> 'practice' AND rq.source = 'generated' AND rq.template_key IS NOT NULL AND rq.answered_at IS NOT NULL
        ORDER BY rq.template_key, rq.answered_at DESC
      ) latest
      WHERE latest.is_correct = false`,

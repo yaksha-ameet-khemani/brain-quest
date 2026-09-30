@@ -3,6 +3,7 @@ import { query, queryOne, withTransaction } from "@/lib/db";
 import { requireKid } from "@/lib/requireKid";
 import { getBalance } from "@/lib/balance";
 import { getNegativeMarkingEnabled } from "@/lib/gameSettings";
+import { questionTiming } from "@/lib/practice";
 import {
   PERFECT_ROUND_BONUS,
   POINTS_PER_CORRECT,
@@ -10,7 +11,6 @@ import {
   SPEED_BONUS_POINTS,
   STREAK_MULTIPLIER,
   STREAK_THRESHOLD,
-  effectiveAnswerSeconds,
   type Level,
 } from "@/lib/config";
 import type { ChildRow, RoundQuestionRow, RoundRow } from "@/lib/types";
@@ -80,13 +80,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ roundId
   );
 
   const level = round.level as Level;
-  const timeLimitSeconds = effectiveAnswerSeconds(level, child?.answer_seconds ?? null);
+  const { timeLimitSeconds } = await questionTiming(round, position, child?.answer_seconds ?? null);
   const elapsedSeconds = (Date.now() - new Date(rq.shown_at).getTime()) / 1000;
   const withinTime = elapsedSeconds <= timeLimitSeconds + TIMEOUT_GRACE_SECONDS;
 
   const rawCorrect = selectedIndex === rq.correct_index;
   const isCorrect = paused ? rawCorrect : rawCorrect && withinTime;
-  const isReview = round.kind === "review";
+  // Review and practice rounds are never scored: no points, no penalty, no
+  // streak or perfect-round bonus.
+  const unscored = round.kind === "review" || round.kind === "practice";
 
   const totalQuestionsRow = await queryOne<{ count: string }>(
     "SELECT count(*) FROM round_questions WHERE round_id = $1",
@@ -95,12 +97,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ roundId
   const totalQuestions = Number(totalQuestionsRow?.count ?? position + 1);
 
   // Current streak: consecutive correct answers ending at this one, looking
-  // back over already-answered questions in this round. Review rounds are
-  // practice only - never scored, so skip all of this (see lib/config.ts).
+  // back over already-answered questions in this round. Unscored rounds
+  // (review, practice) skip all of this.
   // A paused question never earns points either.
   let pointsAwarded = 0;
   let streak = 0;
-  if (isCorrect && !isReview && !paused) {
+  if (isCorrect && !unscored && !paused) {
     const priorAnswers = await query<Pick<RoundQuestionRow, "position" | "is_correct" | "paused">>(
       "SELECT position, is_correct, paused FROM round_questions WHERE round_id = $1 AND position < $2 ORDER BY position DESC",
       [roundId, position]
@@ -127,7 +129,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ roundId
   // way"), and never for a genuine timeout (selectedIndex -1, auto-submitted
   // by app/quiz/page.tsx) - not answering isn't the same as answering wrong.
   let penalty = 0;
-  if (!isCorrect && !isReview && !paused && selectedIndex !== -1 && (await getNegativeMarkingEnabled())) {
+  if (!isCorrect && !unscored && !paused && selectedIndex !== -1 && (await getNegativeMarkingEnabled())) {
     penalty = wrongAnswerPenalty(level);
   }
 
@@ -151,7 +153,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ roundId
   const isLastQuestion = position === totalQuestions - 1;
   const roundComplete = isLastQuestion;
   const perfectBonus =
-    !isReview && isLastQuestion && newCorrectCount === totalQuestions && !roundHasPaused
+    !unscored && isLastQuestion && newCorrectCount === totalQuestions && !roundHasPaused
       ? PERFECT_ROUND_BONUS[level]
       : 0;
 
