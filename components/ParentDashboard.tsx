@@ -53,16 +53,41 @@ interface ActivitySummary {
   currentWeeklyStreak: number;
 }
 
+type DashboardTab = "home" | "kids" | "activity" | "settings";
+
+const ALL_TABS: { key: DashboardTab; label: string; adminOnly: boolean }[] = [
+  { key: "home", label: "🏠 Home", adminOnly: false },
+  { key: "kids", label: "👧 Kids", adminOnly: false },
+  { key: "activity", label: "📊 Activity", adminOnly: true },
+  { key: "settings", label: "⚙️ Settings", adminOnly: true },
+];
+
 export default function ParentDashboard({
   parentEmail,
   role,
+  initialTab,
 }: {
   parentEmail: string;
   role: "admin" | "parent";
+  initialTab: string | undefined;
 }) {
   useAutoRefresh();
   const router = useRouter();
-  const [overview, setOverview] = useState<ChildOverview[]>([]);
+  const tabs = ALL_TABS.filter((t) => role === "admin" || !t.adminOnly);
+  const [tab, setTab] = useState<DashboardTab>(tabs.find((t) => t.key === initialTab)?.key ?? "home");
+  const [showAddChild, setShowAddChild] = useState(false);
+
+  // The open tab lives in the address (?tab=settings), so a refresh or the
+  // Back button from a child's page lands on the same tab. replaceState, not
+  // a router navigation: switching tabs shouldn't refetch the page.
+  function selectTab(next: DashboardTab) {
+    setTab(next);
+    const url = new URL(window.location.href);
+    if (next === "home") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", next);
+    window.history.replaceState(window.history.state, "", url);
+  }
+  const [overview, setOverview] = useState<ChildOverview[] | null>(null);
   const [redemptions, setRedemptions] = useState<Redemption[]>([]);
   const [parents, setParents] = useState<ParentAccount[]>([]);
   const [activity, setActivity] = useState<ActivitySummary[]>([]);
@@ -113,7 +138,7 @@ export default function ParentDashboard({
       role === "admin" ? fetch("/api/admin/activity") : Promise.resolve(null),
       role === "admin" ? fetch("/api/admin/settings") : Promise.resolve(null),
     ]);
-    if (ov.ok) setOverview((await ov.json()).overview);
+    setOverview(ov.ok ? (await ov.json()).overview : []);
     if (rd.ok) setRedemptions((await rd.json()).redemptions);
     if (pa?.ok) setParents((await pa.json()).parents);
     if (ac?.ok) setActivity((await ac.json()).activity);
@@ -264,7 +289,7 @@ export default function ParentDashboard({
   const decided = redemptions.filter((r) => r.status !== "pending").slice(0, 10);
 
   return (
-    <main className="flex flex-col gap-8 pt-6">
+    <main className="flex flex-col gap-6 pt-6">
       <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
           <h1 className="text-xl font-bold sm:text-2xl">
@@ -294,126 +319,289 @@ export default function ParentDashboard({
         </div>
       </header>
 
-      <section>
-        <h2 className="mb-3 text-lg font-bold">Pending reward requests</h2>
-        {pending.length === 0 && <p className="text-sm text-slate-500">Nothing waiting on you 🎉</p>}
-        <div className="grid gap-3">
-          {pending.map((r) => (
-            <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
-              <div className="min-w-0">
-                <p className="flex items-center gap-1.5 font-semibold">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center text-base">
-                    <Avatar photoDataUrl={r.child?.photoDataUrl} avatar={r.child?.avatar ?? "🙂"} name={r.child?.name} />
-                  </span>
-                  <span>
-                    {r.child?.name} wants: {r.reward_name}
-                  </span>
-                </p>
-                <p className="text-sm text-slate-500">{r.cost} pts</p>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <button
-                  disabled={busy === r.id}
-                  onClick={() => decide(r.id, "approve")}
-                  className="flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                >
-                  {busy === r.id && <Spinner />}
-                  Approve
-                </button>
-                <button
-                  disabled={busy === r.id}
-                  onClick={() => decide(r.id, "deny")}
-                  className="flex items-center gap-1.5 rounded-full bg-rose-500 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                >
-                  {busy === r.id && <Spinner />}
-                  Deny
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+      <nav className="sticky top-0 z-10 -mx-4 flex gap-2 overflow-x-auto bg-brand-50/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => selectTab(t.key)}
+            className={`relative flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold ${
+              tab === t.key ? "bg-brand-500 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"
+            }`}
+          >
+            {t.label}
+            {t.key === "home" && pending.length > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-xs text-white">
+                {pending.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </nav>
 
-        {decided.some((d) => d.status === "approved") && (
-          <div className="mt-3 grid gap-3">
-            {decided
-              .filter((d) => d.status === "approved")
-              .map((r) => (
-                <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-amber-50 p-4 text-sm ring-1 ring-amber-200">
-                  <span className="flex min-w-0 items-center gap-1.5">
+      {tab === "home" && (
+        <>
+        <section>
+          <h2 className="mb-3 text-lg font-bold">Pending reward requests</h2>
+          {overview !== null && pending.length === 0 && <p className="text-sm text-slate-500">Nothing waiting on you 🎉</p>}
+          <div className="grid gap-3">
+            {pending.map((r) => (
+              <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-1.5 font-semibold">
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center text-base">
                       <Avatar photoDataUrl={r.child?.photoDataUrl} avatar={r.child?.avatar ?? "🙂"} name={r.child?.name} />
                     </span>
                     <span>
-                      {r.child?.name}: {r.reward_name} (approved, not yet given)
+                      {r.child?.name} wants: {r.reward_name}
                     </span>
-                  </span>
+                  </p>
+                  <p className="text-sm text-slate-500">{r.cost} pts</p>
+                </div>
+                <div className="flex shrink-0 gap-2">
                   <button
                     disabled={busy === r.id}
-                    onClick={() => decide(r.id, "fulfill")}
-                    className="flex shrink-0 items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 font-semibold text-white disabled:opacity-50"
+                    onClick={() => decide(r.id, "approve")}
+                    className="flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   >
                     {busy === r.id && <Spinner />}
-                    Mark given
+                    Approve
+                  </button>
+                  <button
+                    disabled={busy === r.id}
+                    onClick={() => decide(r.id, "deny")}
+                    className="flex items-center gap-1.5 rounded-full bg-rose-500 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    {busy === r.id && <Spinner />}
+                    Deny
                   </button>
                 </div>
-              ))}
-          </div>
-        )}
-      </section>
-
-      <section>
-        <h2 className="mb-3 text-lg font-bold">Progress</h2>
-        <div className="grid gap-4">
-          {overview.map((o) => (
-            <div key={o.child.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
-              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                <p className="flex min-w-0 items-center gap-1.5 font-semibold">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center text-lg">
-                    <Avatar photoDataUrl={o.child.photoDataUrl} avatar={o.child.avatar} name={o.child.name} />
-                  </span>
-                  <span className="truncate">
-                    {o.child.name} · Level {o.child.level}
-                  </span>
-                </p>
-                <p className="shrink-0 font-bold text-brand-600">{o.balance} pts</p>
               </div>
-              <p className="mt-1 text-xs text-slate-500">
-                {o.roundsPlayed} rounds completed
-                {role === "admin" && o.parentEmail && <> · parent: {o.parentEmail}</>}
-              </p>
-              {o.categoryStats.length > 0 && (
-                <div className="mt-3 grid gap-1.5">
-                  {o.categoryStats.map((c) => (
-                    <div key={c.category} className="flex items-center gap-2 text-xs">
-                      <span className="w-16 capitalize text-slate-500">{c.category}</span>
-                      <div className="h-2 flex-1 rounded-full bg-slate-100">
-                        <div
-                          className="h-2 rounded-full bg-brand-400"
-                          style={{ width: `${Math.round((c.correct / c.total) * 100)}%` }}
-                        />
-                      </div>
-                      <span className="text-slate-400">
-                        {c.correct}/{c.total}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <Link
-                href={`/parent/children/${o.child.id}`}
-                className="mt-3 inline-block text-xs font-semibold text-brand-600 underline"
-              >
-                View full question log →
-              </Link>
-            </div>
-          ))}
-          {overview.length === 0 && <p className="text-sm text-slate-500">No kid profiles yet - add one below.</p>}
-        </div>
-      </section>
+            ))}
+          </div>
 
-      {role === "admin" && (
+          {decided.some((d) => d.status === "approved") && (
+            <div className="mt-3 grid gap-3">
+              {decided
+                .filter((d) => d.status === "approved")
+                .map((r) => (
+                  <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-amber-50 p-4 text-sm ring-1 ring-amber-200">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center text-base">
+                        <Avatar photoDataUrl={r.child?.photoDataUrl} avatar={r.child?.avatar ?? "🙂"} name={r.child?.name} />
+                      </span>
+                      <span>
+                        {r.child?.name}: {r.reward_name} (approved, not yet given)
+                      </span>
+                    </span>
+                    <button
+                      disabled={busy === r.id}
+                      onClick={() => decide(r.id, "fulfill")}
+                      className="flex shrink-0 items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 font-semibold text-white disabled:opacity-50"
+                    >
+                      {busy === r.id && <Spinner />}
+                      Mark given
+                    </button>
+                  </div>
+                ))}
+            </div>
+          )}
+        </section>
+
         <section>
-          <h2 className="mb-3 text-lg font-bold">🛡️ Family activity (admin only)</h2>
+          <h2 className="mb-3 text-lg font-bold">Kids</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {overview?.map((o) => (
+              <Link
+                key={o.child.id}
+                href={`/parent/children/${o.child.id}`}
+                className="flex flex-col items-center gap-1 rounded-2xl bg-white p-4 text-center shadow-sm ring-1 ring-slate-100 active:bg-brand-50"
+              >
+                <span className="flex h-12 w-12 items-center justify-center text-3xl">
+                  <Avatar photoDataUrl={o.child.photoDataUrl} avatar={o.child.avatar} name={o.child.name} />
+                </span>
+                <span className="max-w-full truncate font-semibold">{o.child.name}</span>
+                <span className="text-xs text-slate-500">
+                  Level {o.child.level} · {o.roundsPlayed} rounds
+                </span>
+                <span className="font-bold text-brand-600">{o.balance} pts</span>
+                <span className="text-xs font-semibold text-brand-600">Open →</span>
+              </Link>
+            ))}
+          </div>
+          {overview === null && <p className="text-sm text-slate-500">Loading…</p>}
+          {overview?.length === 0 && (
+            <p className="text-sm text-slate-500">No kid profiles yet - add one from the Kids tab.</p>
+          )}
+        </section>
+        </>
+      )}
+
+      {tab === "kids" && (
+        <>
+        <section>
+          <h2 className="mb-3 text-lg font-bold">Progress</h2>
+          <div className="grid gap-4">
+            {overview?.map((o) => (
+              <div key={o.child.id} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <p className="flex min-w-0 items-center gap-1.5 font-semibold">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center text-lg">
+                      <Avatar photoDataUrl={o.child.photoDataUrl} avatar={o.child.avatar} name={o.child.name} />
+                    </span>
+                    <span className="truncate">
+                      {o.child.name} · Level {o.child.level}
+                    </span>
+                  </p>
+                  <p className="shrink-0 font-bold text-brand-600">{o.balance} pts</p>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  {o.roundsPlayed} rounds completed
+                  {role === "admin" && o.parentEmail && <> · parent: {o.parentEmail}</>}
+                </p>
+                {o.categoryStats.length > 0 && (
+                  <div className="mt-3 grid gap-1.5">
+                    {o.categoryStats.map((c) => (
+                      <div key={c.category} className="flex items-center gap-2 text-xs">
+                        <span className="w-16 capitalize text-slate-500">{c.category}</span>
+                        <div className="h-2 flex-1 rounded-full bg-slate-100">
+                          <div
+                            className="h-2 rounded-full bg-brand-400"
+                            style={{ width: `${Math.round((c.correct / c.total) * 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-slate-400">
+                          {c.correct}/{c.total}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Link
+                  href={`/parent/children/${o.child.id}`}
+                  className="mt-3 inline-block text-xs font-semibold text-brand-600 underline"
+                >
+                  View full question log →
+                </Link>
+              </div>
+            ))}
+            {overview === null && <p className="text-sm text-slate-500">Loading…</p>}
+            {overview?.length === 0 && <p className="text-sm text-slate-500">No kid profiles yet - add one below.</p>}
+          </div>
+        </section>
+
+        <section>
+          {!showAddChild ? (
+            <button
+              onClick={() => setShowAddChild(true)}
+              className="w-full rounded-2xl bg-white p-4 text-center font-semibold text-brand-600 shadow-sm ring-1 ring-slate-100 active:bg-brand-50"
+            >
+              + Add a child
+            </button>
+          ) : (
+            <>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-lg font-bold">Add a child profile</h2>
+                <button onClick={() => setShowAddChild(false)} className="text-sm text-slate-500 underline">
+                  Close
+                </button>
+              </div>
+              <form onSubmit={addChild} className="grid gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+                <input
+                  required
+                  placeholder="Name"
+                  value={newChild.name}
+                  onChange={(e) => setNewChild((s) => ({ ...s, name: e.target.value }))}
+                  className="rounded-xl border border-slate-200 p-3"
+                />
+                {role === "admin" && (
+                  <select
+                    required
+                    value={newChild.parentId}
+                    onChange={(e) => setNewChild((s) => ({ ...s, parentId: e.target.value }))}
+                    className="rounded-xl border border-slate-200 p-3"
+                  >
+                    <option value="">Which parent owns this child?</option>
+                    {parents.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.email}
+                        {p.role === "admin" ? " (you, admin)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <div className="flex gap-3">
+                  <input
+                    placeholder="Avatar emoji"
+                    value={newChild.avatar}
+                    onChange={(e) => setNewChild((s) => ({ ...s, avatar: e.target.value }))}
+                    className="w-24 rounded-xl border border-slate-200 p-3 text-center"
+                  />
+                  <select
+                    value={newChild.level}
+                    onChange={(e) => setNewChild((s) => ({ ...s, level: e.target.value }))}
+                    className="flex-1 rounded-xl border border-slate-200 p-3"
+                  >
+                    <option value="1">Level 1 (younger)</option>
+                    <option value="2">Level 2 (older)</option>
+                    <option value="3">Level 3 (most advanced)</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-50 text-3xl ring-1 ring-slate-200">
+                    <Avatar photoDataUrl={newChild.photoDataUrl} avatar={newChild.avatar || "🙂"} />
+                  </span>
+                  <div className="flex-1">
+                    <label className="inline-block cursor-pointer rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-600">
+                      {processingPhoto ? "Processing…" : newChild.photoDataUrl ? "Change photo" : "Add a photo (optional)"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={processingPhoto}
+                        onChange={(e) => handlePhotoFile(e.target.files?.[0])}
+                      />
+                    </label>
+                    {newChild.photoDataUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setNewChild((s) => ({ ...s, photoDataUrl: null }))}
+                        className="ml-2 text-xs text-rose-500 underline"
+                      >
+                        Remove
+                      </button>
+                    )}
+                    {photoError && <p className="mt-1 text-xs text-rose-600">{photoError}</p>}
+                  </div>
+                </div>
+                <input
+                  required
+                  placeholder="4-6 digit PIN"
+                  inputMode="numeric"
+                  pattern="\d{4,6}"
+                  value={newChild.pin}
+                  onChange={(e) => setNewChild((s) => ({ ...s, pin: e.target.value }))}
+                  className="rounded-xl border border-slate-200 p-3"
+                />
+                {message && <p className="text-sm text-brand-700">{message}</p>}
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-brand-500 p-3 font-semibold text-white disabled:opacity-50"
+                >
+                  {creating && <Spinner />}
+                  {creating ? "Adding…" : "Add child"}
+                </button>
+              </form>
+            </>
+          )}
+        </section>
+        </>
+      )}
+
+      {tab === "activity" && role === "admin" && (
+        <>
+        <section>
+          <h2 className="mb-3 text-lg font-bold">🛡️ Family activity</h2>
           <p className="mb-3 text-xs text-slate-500">
             Last login and lifetime question stats per child. Visible only here, not on the homepage.
           </p>
@@ -464,40 +652,42 @@ export default function ParentDashboard({
             {activity.length === 0 && <p className="text-sm text-slate-500">No activity yet.</p>}
           </div>
         </section>
+
+        {activity.length > 0 && (
+          <section>
+            <h2 className="mb-3 text-lg font-bold">📅 30-day history</h2>
+            <p className="mb-3 text-xs text-slate-500">
+              Pick a child to see each day&apos;s points, login times and reward requests.
+            </p>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {activity.map((a) => {
+                const selected = (historyChildId ?? activity[0]?.id) === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => setHistoryChildId(a.id)}
+                    className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${
+                      selected ? "bg-brand-500 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"
+                    }`}
+                  >
+                    <span className="flex h-4 w-4 items-center justify-center text-sm">
+                      <Avatar photoDataUrl={a.photoDataUrl} avatar={a.avatar} name={a.name} />
+                    </span>
+                    {a.name}
+                  </button>
+                );
+              })}
+            </div>
+            <PointsHistory endpoint={`/api/admin/children/${historyChildId ?? activity[0]?.id}/history`} />
+          </section>
+        )}
+        </>
       )}
 
-      {role === "admin" && activity.length > 0 && (
+      {tab === "settings" && role === "admin" && (
+        <>
         <section>
-          <h2 className="mb-3 text-lg font-bold">📅 30-day history (admin only)</h2>
-          <p className="mb-3 text-xs text-slate-500">
-            Pick a child to see each day&apos;s points, login times and reward requests.
-          </p>
-          <div className="mb-3 flex flex-wrap gap-2">
-            {activity.map((a) => {
-              const selected = (historyChildId ?? activity[0]?.id) === a.id;
-              return (
-                <button
-                  key={a.id}
-                  onClick={() => setHistoryChildId(a.id)}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${
-                    selected ? "bg-brand-500 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200"
-                  }`}
-                >
-                  <span className="flex h-4 w-4 items-center justify-center text-sm">
-                    <Avatar photoDataUrl={a.photoDataUrl} avatar={a.avatar} name={a.name} />
-                  </span>
-                  {a.name}
-                </button>
-              );
-            })}
-          </div>
-          <PointsHistory endpoint={`/api/admin/children/${historyChildId ?? activity[0]?.id}/history`} />
-        </section>
-      )}
-
-      {role === "admin" && (
-        <section>
-          <h2 className="mb-3 text-lg font-bold">🎯 Game settings (admin only)</h2>
+          <h2 className="mb-3 text-lg font-bold">🎯 Game settings</h2>
           <div className="flex items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
             <div>
               <p className="text-sm font-semibold">Negative marking</p>
@@ -518,11 +708,9 @@ export default function ParentDashboard({
             </button>
           </div>
         </section>
-      )}
 
-      {role === "admin" && (
         <section>
-          <h2 className="mb-3 text-lg font-bold">📦 Database backups (admin only)</h2>
+          <h2 className="mb-3 text-lg font-bold">📦 Database backups</h2>
           <p className="mb-3 text-xs text-slate-500">
             Also runs automatically every day. A manual backup is encrypted and committed straight into this
             repo&apos;s <code>backup/</code> folder - only decryptable with the key you hold, not visible as
@@ -544,100 +732,7 @@ export default function ParentDashboard({
             )}
           </div>
         </section>
-      )}
 
-      <section>
-        <h2 className="mb-3 text-lg font-bold">Add a child profile</h2>
-        <form onSubmit={addChild} className="grid gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
-          <input
-            required
-            placeholder="Name"
-            value={newChild.name}
-            onChange={(e) => setNewChild((s) => ({ ...s, name: e.target.value }))}
-            className="rounded-xl border border-slate-200 p-3"
-          />
-          {role === "admin" && (
-            <select
-              required
-              value={newChild.parentId}
-              onChange={(e) => setNewChild((s) => ({ ...s, parentId: e.target.value }))}
-              className="rounded-xl border border-slate-200 p-3"
-            >
-              <option value="">Which parent owns this child?</option>
-              {parents.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.email}
-                  {p.role === "admin" ? " (you, admin)" : ""}
-                </option>
-              ))}
-            </select>
-          )}
-          <div className="flex gap-3">
-            <input
-              placeholder="Avatar emoji"
-              value={newChild.avatar}
-              onChange={(e) => setNewChild((s) => ({ ...s, avatar: e.target.value }))}
-              className="w-24 rounded-xl border border-slate-200 p-3 text-center"
-            />
-            <select
-              value={newChild.level}
-              onChange={(e) => setNewChild((s) => ({ ...s, level: e.target.value }))}
-              className="flex-1 rounded-xl border border-slate-200 p-3"
-            >
-              <option value="1">Level 1 (younger)</option>
-              <option value="2">Level 2 (older)</option>
-              <option value="3">Level 3 (most advanced)</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-50 text-3xl ring-1 ring-slate-200">
-              <Avatar photoDataUrl={newChild.photoDataUrl} avatar={newChild.avatar || "🙂"} />
-            </span>
-            <div className="flex-1">
-              <label className="inline-block cursor-pointer rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-600">
-                {processingPhoto ? "Processing…" : newChild.photoDataUrl ? "Change photo" : "Add a photo (optional)"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  disabled={processingPhoto}
-                  onChange={(e) => handlePhotoFile(e.target.files?.[0])}
-                />
-              </label>
-              {newChild.photoDataUrl && (
-                <button
-                  type="button"
-                  onClick={() => setNewChild((s) => ({ ...s, photoDataUrl: null }))}
-                  className="ml-2 text-xs text-rose-500 underline"
-                >
-                  Remove
-                </button>
-              )}
-              {photoError && <p className="mt-1 text-xs text-rose-600">{photoError}</p>}
-            </div>
-          </div>
-          <input
-            required
-            placeholder="4-6 digit PIN"
-            inputMode="numeric"
-            pattern="\d{4,6}"
-            value={newChild.pin}
-            onChange={(e) => setNewChild((s) => ({ ...s, pin: e.target.value }))}
-            className="rounded-xl border border-slate-200 p-3"
-          />
-          {message && <p className="text-sm text-brand-700">{message}</p>}
-          <button
-            type="submit"
-            disabled={creating}
-            className="flex items-center justify-center gap-2 rounded-xl bg-brand-500 p-3 font-semibold text-white disabled:opacity-50"
-          >
-            {creating && <Spinner />}
-            {creating ? "Adding…" : "Add child"}
-          </button>
-        </form>
-      </section>
-
-      {role === "admin" && (
         <section>
           <h2 className="mb-3 text-lg font-bold">🛡️ Manage parent accounts</h2>
           <div className="grid gap-2">
@@ -701,6 +796,7 @@ export default function ParentDashboard({
             </button>
           </form>
         </section>
+        </>
       )}
     </main>
   );

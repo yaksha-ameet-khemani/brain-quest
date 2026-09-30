@@ -188,6 +188,13 @@ Open http://localhost:3000.
   30-day history, streaks, checkup and review. Practice questions live in
   the main bank (marked "🎯 Practice only") but stay out of normal rounds
   (`questions.in_rotation = false`).
+- The parent/admin dashboard is split into **tabs** instead of one long
+  page: **🏠 Home** (pending reward requests - with a red count on the tab -
+  and a short card per kid linking to their page), **👧 Kids** (full
+  progress cards, "+ Add a child" opens the form), and for the admin only
+  **📊 Activity** (family activity, 30-day history) and **⚙️ Settings**
+  (game settings, backups, parent accounts). The open tab is kept in the
+  address (`/parent?tab=settings`) so refresh and Back return to it.
 - Requesting a reward takes two taps: "Request" opens an inline "Spend X of
   your Y points on Z? You'll have N left" check, and only "Yes, request it"
   actually spends the points.

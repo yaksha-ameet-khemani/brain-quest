@@ -4,9 +4,10 @@ import ParentDashboard from "@/components/ParentDashboard";
 
 export const dynamic = "force-dynamic";
 
-export default async function ParentPage() {
+export default async function ParentPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const parent = await requireParent();
   if (!parent) redirect("/login/parent");
 
-  return <ParentDashboard parentEmail={parent.email} role={parent.role} />;
+  const { tab } = await searchParams;
+  return <ParentDashboard parentEmail={parent.email} role={parent.role} initialTab={tab} />;
 }

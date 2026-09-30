@@ -1285,3 +1285,32 @@ the main question bank for later use (e.g. tutorials).
   standard round afterwards had no practice-only questions and a normal
   45s timer. Dashboard card, quiz banner and feedback screen checked in
   the browser. `tsc`, `eslint`, `npm run build` clean.
+
+**v35 update - admin dashboard in tabs:** the user found the parent/admin
+dashboard too long - nine sections stacked on one page (pending reward
+requests, progress, family activity, 30-day history, game settings,
+backups, add child, parent accounts). It is now four tabs, grouped by how
+often each part is used (the grouping and the short kid cards on Home were
+the user's choice):
+
+- **🏠 Home** (default): pending reward requests plus "approved, not yet
+  given", then a 2-column grid of short kid cards (photo, name, level,
+  rounds, points) that each open the child page. The tab shows a red count
+  of pending requests, so they're visible from any tab.
+- **👧 Kids:** the full progress cards; "+ Add a child" is a button that
+  opens the form instead of the form always showing.
+- **📊 Activity** (admin): family activity and 30-day history.
+- **⚙️ Settings** (admin): game settings, database backups, parent accounts.
+  Parents (non-admin) only get Home and Kids.
+- The tab is in the address (`?tab=kids`), read on the server by
+  `app/parent/page.tsx` so the right tab renders first, and updated with
+  `history.replaceState` on switch (no refetch). The tab bar sticks to the
+  top and scrolls sideways if it ever doesn't fit.
+- Layout only: every section's code was moved as-is, no API or data
+  change. Small fix while here: "No kid profiles yet" and "Nothing waiting
+  on you" no longer flash before the data has loaded.
+- Checked in the browser against the real data (view only - nothing
+  clicked that writes): all four tabs, the pending count, the URL on each
+  switch, and a reload landing on the same tab. `tsc`, `eslint`,
+  `npm run build` clean. The child page (settings cards above 7 tabs) is
+  next, once the user has tried this.
