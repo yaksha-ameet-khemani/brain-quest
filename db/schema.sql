@@ -322,3 +322,53 @@ $$;
 create trigger child_reports_no_truncate
   before truncate on child_reports
   for each statement execute function child_reports_no_truncate();
+
+-- ---------------------------------------------------------------------------
+-- Saved tips (lib/tips.ts): one row per child per finished 3-day period,
+-- built from that period's wrong answers (practice included) - the child's
+-- encouraging tips plus, for parents/admin, the reasons and mistakes.
+-- PERMANENT BY DESIGN, exactly like child_reports above: deleting a child only
+-- nulls child_id, and the triggers refuse every other UPDATE, DELETE and
+-- TRUNCATE. Kept separate from the reports.
+-- ---------------------------------------------------------------------------
+create table child_tips (
+  id uuid primary key default gen_random_uuid(),
+  child_id uuid references children (id) on delete set null,
+  child_name text not null,
+  period_start date not null,
+  period_end date not null,
+  data jsonb not null,
+  created_at timestamptz not null default now(),
+  unique (child_id, period_start)
+);
+
+create function child_tips_are_permanent() returns trigger
+language plpgsql as $$
+begin
+  if tg_op = 'UPDATE'
+     and old.child_id is not null and new.child_id is null
+     and new.id = old.id and new.child_name = old.child_name
+     and new.period_start = old.period_start and new.period_end = old.period_end
+     and new.data = old.data and new.created_at = old.created_at then
+    return new; -- the child was deleted; keep the tips, just unlink them
+  end if;
+  raise exception 'child_tips are permanent: % is not allowed', tg_op;
+end;
+$$;
+
+create trigger child_tips_no_change
+  before update or delete on child_tips
+  for each row execute function child_tips_are_permanent();
+
+-- TRUNCATE fires per statement (no row to inspect), so it gets its own
+-- always-refuse function.
+create function child_tips_no_truncate() returns trigger
+language plpgsql as $$
+begin
+  raise exception 'child_tips are permanent: TRUNCATE is not allowed';
+end;
+$$;
+
+create trigger child_tips_no_truncate
+  before truncate on child_tips
+  for each statement execute function child_tips_no_truncate();

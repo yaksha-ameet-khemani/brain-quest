@@ -188,6 +188,16 @@ Open http://localhost:3000.
   30-day history, streaks, checkup and review. Practice questions live in
   the main bank (marked "🎯 Practice only") but stay out of normal rounds
   (`questions.in_rotation = false`).
+- **💡 Tips every 3 days:** each child's wrong answers from the last
+  finished 3-day period (practice included) are turned into tips from a
+  fixed library (`lib/tipLibrary.ts`, 2-3 per skill plus "slow down" and
+  "beat the clock" habit tips). The child sees 1-2 encouraging tips on their
+  dashboard - no scores, no "weak". Their parent and the admin get a
+  "💡 Tips" tab on the child page with every period: the tips, how many were
+  wrong in each skill, and the actual mistakes. Every period's tips are
+  saved once to `child_tips` and are **permanent** (the database refuses to
+  delete or change them, like the 10-day reports), kept for a later
+  month-end analysis. Tips are separate from the reports.
 - **Fruit equations** (like newspaper puzzles: 🍋 + 🍋 = 12, 🍋 + 🍎 = 10,
   🍎 + 🍊 = 9, 🍋 + 🍊 = ?) are a generated math question at Level 1 and 2,
   with new fruit and numbers every time. They and other multi-step

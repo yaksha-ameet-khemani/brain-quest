@@ -21,4 +21,5 @@ export const BACKUP_TABLES = [
   "rewards",
   "redemptions",
   "child_reports",
+  "child_tips",
 ] as const;

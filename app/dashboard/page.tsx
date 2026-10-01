@@ -8,6 +8,7 @@ import { getReviewProgress } from "@/lib/reviewProgress";
 import { getCheckupProgress } from "@/lib/checkupProgress";
 import { getStreaks } from "@/lib/streak";
 import { getAssignedPracticeSets, type PracticeSetProgress } from "@/lib/practice";
+import { latestTips, type TipSet } from "@/lib/tips";
 import { LEVELS, MAX_ROUNDS_PER_DAY, type Level } from "@/lib/config";
 import type { ChildRow } from "@/lib/types";
 import KidLogoutButton from "@/components/KidLogoutButton";
@@ -34,6 +35,7 @@ export default async function DashboardPage() {
   const checkupProgress = await getCheckupProgress(kid.childId);
   const streaks = await getStreaks(kid.childId);
   const practiceSets = await getAssignedPracticeSets(kid.childId);
+  const tips = await latestTips(kid.childId);
 
   return (
     <main className="flex flex-col gap-8 pt-6">
@@ -96,6 +98,8 @@ export default async function DashboardPage() {
         {practiceSets.map((set) => (
           <PracticeCard key={set.id} set={set} />
         ))}
+
+        {tips && <TipsCard tips={tips} />}
 
         <Link
           href="/rewards"
@@ -218,6 +222,33 @@ function PracticeCard({ set }: { set: PracticeSetProgress }) {
           );
         })}
       </div>
+    </section>
+  );
+}
+
+/** Tips from the last finished 3-day period (lib/tips.ts). Only the
+ * encouraging tip text - never how many were wrong or which skill was weak;
+ * parents and the admin see the reasons on the child's page. */
+function TipsCard({ tips }: { tips: TipSet }) {
+  return (
+    <section className="rounded-2xl bg-gradient-to-br from-amber-50 to-yellow-50 p-5 shadow-sm ring-1 ring-amber-200">
+      <p className="text-center text-lg font-bold text-amber-800">💡 Tips for you</p>
+      {tips.status === "tips" ? (
+        <ul className="mt-3 grid gap-3">
+          {tips.childTips.map((tip) => (
+            <li key={tip.title} className="rounded-xl bg-white/80 p-3 ring-1 ring-amber-100">
+              <p className="font-semibold text-amber-900">{tip.title}</p>
+              <p className="mt-1 text-sm text-slate-700">{tip.text}</p>
+            </li>
+          ))}
+        </ul>
+      ) : tips.status === "no_wrong" ? (
+        <p className="mt-2 text-center text-sm text-amber-800">
+          ⭐ Brilliant - no mistakes in your last few days of playing! Keep it up.
+        </p>
+      ) : (
+        <p className="mt-2 text-center text-sm text-amber-800">Play a few rounds and your next tips will appear here!</p>
+      )}
     </section>
   );
 }

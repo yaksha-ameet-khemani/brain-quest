@@ -12,6 +12,7 @@ import PointsHistory from "@/components/PointsHistory";
 import PeriodReports from "@/components/PeriodReports";
 import PracticeSets from "@/components/PracticeSets";
 import SkillMap from "@/components/SkillMap";
+import TipsHistory from "@/components/TipsHistory";
 import Spinner from "@/components/Spinner";
 
 interface LogEntry {
@@ -466,11 +467,12 @@ function ResetActivityButton({ childId, onDone }: { childId: string; onDone: () 
   );
 }
 
-type ChildTab = "report" | "log" | "logins" | "history" | "periods" | "skills" | "practice" | "settings";
+type ChildTab = "report" | "log" | "tips" | "logins" | "history" | "periods" | "skills" | "practice" | "settings";
 
 const CHILD_TABS: { key: ChildTab; label: string; adminOnly: boolean }[] = [
   { key: "report", label: "📊 Report", adminOnly: false },
   { key: "log", label: "📋 Full log", adminOnly: false },
+  { key: "tips", label: "💡 Tips", adminOnly: false },
   { key: "logins", label: "🕒 Last logins", adminOnly: true },
   { key: "history", label: "📅 30-day history", adminOnly: true },
   { key: "periods", label: "🗂️ 10-day reports", adminOnly: true },
@@ -590,6 +592,8 @@ export default function ChildLog({
         </div>
       ) : tab === "report" ? (
         <ChildReport childId={childId} />
+      ) : tab === "tips" ? (
+        <TipsHistory childId={childId} />
       ) : tab === "skills" ? (
         <SkillMap childId={childId} />
       ) : tab === "practice" ? (

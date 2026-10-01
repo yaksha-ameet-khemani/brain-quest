@@ -1423,3 +1423,57 @@ away (his experiment already includes math).
   fruit equations arrived with line breaks and no answer; a Level 3 logic
   round served 3 bank pen & paper questions at 180 s. The quiz screen was
   checked in the browser. `tsc`, `eslint`, `npm run build` clean.
+
+**v39 update - tips from wrong answers, saved permanently:** the user asked
+for tips like the ones I wrote by hand for Banku before his assessment, for
+every child every 3 days. Their requirements: tips kept completely out of
+the reports; built from the last 3 days' wrong answers; children see them
+encouragingly (no score, no "you are weak"); parents and the admin also see
+the reason; and every tip set stored for all time, never deleted, for a
+month-end analyzer to come later.
+
+- **No AI.** An AI writer would cost money (the $0 rule), so tips come from a
+  fixed, hand-written library (`lib/tipLibrary.ts`): 2-3 tips for each of
+  the 31 skills, used in turn so a repeated skill gets a new trick, plus two
+  habit tips. Titles are unique.
+- **Periods:** fixed 3-day blocks from the report anchor (16-18 Sep, 19-21
+  Sep, ...; `TIP_PERIOD_DAYS`). A child sees the tips of the last finished
+  block, so they stay the same for 3 days.
+- **Choosing (`lib/tips.ts`):** every wrong answer in the block, any round
+  kind, practice included (tips aren't reports, so the "practice stays out
+  of reports" rule still holds), grouped by skill (bank tag, or the math
+  template's skill). Up to 3 skills by most wrong (ties: most recent), each
+  with up to 3 example mistakes. Habit: "rushing" when at least 3 wrong
+  answers, and at least half of them, came in under 8 s without pausing;
+  otherwise "timeouts" when the clock ran out at least twice. The child
+  gets two tips at most: the top skill's, then the habit's (or the second
+  skill's). No answers -> "play a few rounds"; none wrong -> "brilliant".
+- **Who sees what:** the kid dashboard shows a "💡 Tips for you" card (tip
+  text only). The child page has a "💡 Tips" tab for the child's own parent
+  and the admin (`GET /api/parent/children/[childId]/tips`, `ownedChild`),
+  listing every period with counts, each skill's mistakes (picked vs
+  correct, seconds, practice or not) and which tips the child was shown.
+- **Permanent storage:** `child_tips` (`db/migrations/021_child_tips.sql`,
+  applied 2026-10-01) with the same triggers as `child_reports`: no
+  DELETE, TRUNCATE or UPDATE except the automatic child_id -> null when a
+  child is deleted; the stored JSON holds the exact tip text shown, so it
+  never changes even if the library is edited later. A block is saved the
+  first time anything shows tips after it ends (kid dashboard, the Tips
+  tab); missed blocks are filled in then. Because the weekly keepalive
+  workflow turned out to be failing (both September runs; probably its
+  GitHub secrets were never set), saving doesn't rely on a schedule -
+  instead "reset activity" and child deletion save any unsaved blocks
+  first, since they delete the answers tips come from. Added to backups.
+- `addDays`/`daysBetween` moved from `lib/periodReport.ts` to
+  `lib/timezone.ts` so tips can share them without importing the reports.
+- **Verified** without leaving test data behind (test rows would have been
+  permanent): the real tip code was compiled and run against the real
+  database inside a transaction that was rolled back - all 4 children got 5
+  periods (running it twice added none), empty periods were "no answers",
+  repeated skills rotated tips, and Banku's 28-30 Sep set came out as
+  symmetry (8 wrong) + "slow and steady" (31 of 53 wrong answers under 8 s).
+  The migration's dry run showed UPDATE, DELETE, TRUNCATE and changing a
+  period all refused. Then, on a local server, Banku's dashboard showed the
+  two tips with no numbers and the admin Tips tab showed the reasons and
+  mistakes - which saved his 5 real sets (the same content as checked).
+  `tsc`, `eslint`, `npm run build` clean.

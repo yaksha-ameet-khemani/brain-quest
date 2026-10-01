@@ -1,6 +1,6 @@
 import "server-only";
 import { query, queryOne } from "@/lib/db";
-import { TZ, localDateKey } from "@/lib/timezone";
+import { TZ, addDays, daysBetween, localDateKey } from "@/lib/timezone";
 import { median } from "@/lib/format";
 import { buildPeriodSkills, skillInsights, type SkillRow } from "@/lib/skillMap";
 import {
@@ -18,7 +18,6 @@ import {
 // db/migrations/015_child_reports.sql), so this file only ever INSERTs. See
 // docs/blueprint.md v30 for why snapshots rather than recomputing on demand.
 
-const DAY_MS = 86_400_000;
 // Categories need at least this many answers before the report calls them a
 // strength/weakness or a trend - a handful of guesses shouldn't decide it.
 const MIN_CATEGORY_ATTEMPTS = 10;
@@ -76,15 +75,6 @@ export interface SavedReportSummary {
   periodEnd: string;
   answered: number;
   correct: number;
-}
-
-function addDays(key: string, n: number): string {
-  const [y, m, d] = key.split("-").map(Number);
-  return new Date(Date.UTC(y!, m! - 1, d!) + n * DAY_MS).toISOString().slice(0, 10);
-}
-
-function daysBetween(a: string, b: string): number {
-  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / DAY_MS);
 }
 
 /** Start key of the 10-day period containing `key`. */

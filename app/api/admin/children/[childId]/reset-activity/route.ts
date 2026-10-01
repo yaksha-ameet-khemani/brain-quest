@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { queryOne, withTransaction } from "@/lib/db";
 import { requireAdmin } from "@/lib/requireParent";
+import { ensureSavedTips } from "@/lib/tips";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ childI
   const child = await queryOne<{ id: string }>("SELECT id FROM children WHERE id = $1", [childId]);
   if (!child) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
+  // Save any tips not saved yet first - they come from the answers about to
+  // be deleted, and saved tips are permanent (lib/tips.ts).
+  await ensureSavedTips(childId);
+
   await withTransaction(async (tx) => {
     // point_transactions.round_id references rounds with no cascade, so it
     // has to go before the rounds it points to.
@@ -27,8 +32,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ childI
     await tx.query("DELETE FROM redemptions WHERE child_id = $1", [childId]);
     await tx.query("DELETE FROM child_logins WHERE child_id = $1", [childId]);
     await tx.query("DELETE FROM child_category_weights WHERE child_id = $1", [childId]);
-    // Saved 10-day reports (child_reports) are deliberately NOT touched -
-    // they're permanent, and the database itself refuses to delete them.
+    // Saved 10-day reports (child_reports) and tips (child_tips) are
+    // deliberately NOT touched - they're permanent, and the database itself
+    // refuses to delete them.
   });
 
   return NextResponse.json({ ok: true });

@@ -115,6 +115,12 @@ export const PERIOD_REPORT_ANCHOR = "2026-09-16";
 // A wrong answer given faster than this is counted as a likely rushed guess.
 export const RUSHED_ANSWER_SECONDS = 8;
 
+// Tips from wrong answers (lib/tips.ts): fixed back-to-back blocks of this
+// many days from the same anchor as the reports (16-18 Sep, 19-21 Sep, ...).
+// Each finished block's tips are saved once and shown until the next one.
+export const TIP_PERIOD_DAYS = 3;
+export const TIP_PERIOD_ANCHOR = PERIOD_REPORT_ANCHOR;
+
 // Admin skill map (lib/skillMap.ts): how each child is doing on each skill in
 // lib/skills.ts. A skill isn't judged until it has SKILL_MIN_ANSWERS answers;
 // its state is then read from the last SKILL_RECENT_ANSWERS answers, so old

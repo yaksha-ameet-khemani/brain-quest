@@ -4,6 +4,7 @@ import { requireParent } from "@/lib/requireParent";
 import { hashPin } from "@/lib/pin";
 import { isValidLevel, MAX_PHOTO_DATA_URL_LENGTH } from "@/lib/config";
 import type { ChildRow } from "@/lib/types";
+import { ensureSavedTips } from "@/lib/tips";
 
 export const dynamic = "force-dynamic";
 
@@ -110,6 +111,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ chil
   const owned = await ownedChildOrForbidden(childId, parent);
   if ("error" in owned) return owned.error;
 
+  // Save any tips not saved yet while their answers still exist - the tips
+  // themselves are kept for good (unlinked from the child, like reports).
+  await ensureSavedTips(childId);
   await queryOne("DELETE FROM children WHERE id = $1", [childId]);
   return NextResponse.json({ ok: true });
 }

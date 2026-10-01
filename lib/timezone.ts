@@ -16,6 +16,19 @@ export function localDateKey(when: Date = new Date()): string {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
+const DAY_MS = 86_400_000;
+
+/** The "YYYY-MM-DD" day key `n` days after `key` (negative goes back). */
+export function addDays(key: string, n: number): string {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(Date.UTC(y!, m! - 1, d!) + n * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** Whole days from day key `a` to day key `b`. */
+export function daysBetween(a: string, b: string): number {
+  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / DAY_MS);
+}
+
 /** Start-of-today and start-of-tomorrow in APP_TIMEZONE, as UTC instants -
  * handy for a `created_at >= startOfToday` query against Postgres timestamps. */
 export function todayRangeUtc(when: Date = new Date()): { start: Date; end: Date } {
