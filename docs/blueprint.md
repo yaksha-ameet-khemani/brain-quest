@@ -1328,3 +1328,45 @@ scrolling hid Practice and Settings off-screen. Checked in the browser on
 Banku's page (view only): all four settings cards under Settings, the tab
 from the address, and Report loading under the tabs after switching back.
 `tsc`, `eslint`, `npm run build` clean.
+
+**v37 update - 320 new Level 1 questions on the thinnest skills:** after
+reviewing the bank with the user (all four children are Level 1; Level 3
+has never been played; nobody is close to running out - each child still
+had 260-340 unseen Level 1 questions per category), the gap was mix, not
+quantity. Level 1 had 0 codes, 0 think-outside-the-box, 0 counting-shapes
+and 2 counting questions, while spatial was the weakest category (57%
+correct) and 854 of the 1,050 riddles were "guess from clues" vocabulary
+riddles. The user chose all three suggested batches, added together in
+`db/migrations/019_level1_reasoning_spatial_riddles.sql` (applied
+2026-10-01, insert only, straight into normal rounds):
+
+- **Logic (150):** codes, think outside the box, counting cleverly,
+  who-has-what, truth and lies, if-then - 25 each.
+- **Spatial (120):** rotation/mirrors/symmetry 35, position and maps 30,
+  counting shapes in a described picture 25, directions 30.
+- **Riddles (50):** wordplay 25 (letter sounds, hidden words, double
+  meanings, palindromes) and trick questions 25.
+- Level 1 skill counts before -> after: codes 0 -> 25, think outside the
+  box 0 -> 25, counting shapes 0 -> 25, counting 2 -> 27, who-has-what
+  11 -> 36, truth/lies 15 -> 40, if-then 26 -> 51, rotation 42 -> 77,
+  position/maps 31 -> 61, directions 71 -> 101, wordplay 21 -> 46, trick
+  questions 10 -> 35. Level 1 is now 500 logic, 470 spatial, 400 riddle
+  (in rotation); the bank is 3,530 questions.
+- **Checks:** a validator compared every question with all 3,210 in the
+  bank (exact text, word-overlap near duplicates, and for riddles, whether
+  the answer is already a riddle answer). Nearly every classic riddle was
+  already in the bank (usually at Level 2/3), so the Level 1 riddles are
+  new ones; about 30 drafts across all three batches were replaced for
+  being exact duplicates, mirror images, or the same puzzle with the same
+  answer at another level. Easier Level 1 versions of Level 2/3 puzzles
+  with different numbers (e.g. the farmer's sheep, fence posts) were kept.
+  All 320 were then re-solved from an answer-free sheet with shuffled
+  options and every answer matched the key. Unlike v25 this re-solve was
+  done by the same author, not separate agents, so it catches wrong keys
+  and two-answer questions less independently. Stored answer positions are
+  spread evenly (80 each); kids see options shuffled anyway. The 6
+  duplicate question texts left in the bank are the known pre-existing
+  cross-level ones from the original 630.
+- Banku's logic/riddle weights are 0 until his experiment ends on 15 Oct,
+  so the new logic and riddle questions reach him only after that (and in
+  checkup/review swap-ins by skill); Lavin and Melina get them now.

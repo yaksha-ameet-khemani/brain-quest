@@ -54,8 +54,8 @@ Open http://localhost:3000.
   a child's level, and admin can change it any time.
 - Math questions are generated from templates (`lib/mathQuestions.ts`) so
   they never run out; logic/riddle/spatial questions come from a curated,
-  hand-verified bank (3,150 questions - 350 per level per category, across
-  all 3 levels) that admin manages from an in-app **Question Bank** page,
+  hand-verified bank (3,530 questions: 350 per level per category, plus 320
+  extra at Level 1 on its thinnest skills and 60 practice-only) that admin manages from an in-app **Question Bank** page,
   including each question's live "proficiency" (attempts/correct/success
   rate). The reward catalog gets the same admin-managed treatment from a
   **Rewards Catalog** page - add/edit/archive rewards, with a live
