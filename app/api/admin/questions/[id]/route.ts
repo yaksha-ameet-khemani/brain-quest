@@ -69,6 +69,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     sets.push(`is_active = $${i++}`);
     values.push(body.isActive);
   }
+  if (typeof body?.penPaper === "boolean") {
+    sets.push(`pen_paper = $${i++}`);
+    values.push(body.penPaper);
+  }
 
   if (sets.length === 0) {
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });

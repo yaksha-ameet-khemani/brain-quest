@@ -44,6 +44,7 @@ export const MATH_TEMPLATE_SKILL: Record<string, string> = {
   linear_equation: "unknowns",
   linear_equation_both_sides: "unknowns",
   age_problem: "unknowns",
+  fruit_equation: "unknowns",
   rectangle_area: "measuring",
   rectangle_perimeter: "measuring",
   circle_circumference: "measuring",

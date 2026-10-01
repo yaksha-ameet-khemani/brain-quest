@@ -1370,3 +1370,56 @@ riddles. The user chose all three suggested batches, added together in
 - Banku's logic/riddle weights are 0 until his experiment ends on 15 Oct,
   so the new logic and riddle questions reach him only after that (and in
   checkup/review swap-ins by skill); Lavin and Melina get them now.
+
+**v38 update - fruit equations and pen & paper questions:** the user saw a
+fruit-equation puzzle in Dainik Bhaskar (2 lemons = 12, lemon + apple =
+..., apple + orange = ..., lemon + orange = ?) and asked for questions like
+it, plus a longer, admin-set timer for questions kids should work out with
+pen and paper. Both levels, all kids with math; Banku included straight
+away (his experiment already includes math).
+
+- **Fruit equations** are a generated math template (`fruit_equation` in
+  `lib/mathQuestions.ts`, skill "find the unknown"), not bank rows, so
+  they never run out and the answer is always computed. Level 1: a double
+  or triple gives the first fruit, two more lines hand on to the next
+  fruits, then "fruit 1 + fruit 3 = ?". Level 2: three times a fruit, a
+  line with the second fruit twice, a subtraction line, then either a
+  three-fruit sum or "x times y + z" (multiply first). Emoji only; the
+  question text keeps its line breaks on the quiz screen.
+- **Verified** by compiling the generator on its own and solving 2,000
+  questions per level by brute force (every fruit 1-30): every question
+  had exactly one possible answer and it was the marked one. That check
+  found a real, older bug: for small answers the shared option builder
+  padded the choices with negative numbers like -3, which gave the answer
+  away. `buildOptions` now drops negative values; 39,000 generated
+  questions across every template and level then had 4 distinct,
+  non-negative options.
+- **Pen & paper:** `game_settings.pen_paper_seconds` (default 180, 30-600,
+  set in minutes in Settings → Game settings); `questions.pen_paper`;
+  `round_questions.pen_paper` (a snapshot when served, so the timer can't
+  change mid-round). `lib/questionTiming.ts` (moved out of
+  `lib/practice.ts`) gives a pen & paper question the longer of that time
+  and the child's normal timer; the answer route and speed bonus use the
+  same time. The quiz shows a ✏️ banner, a ✏️ next to the category, and
+  the timer as m:ss.
+- **Which questions** (my call, as the user asked): generated templates
+  `fruit_equation` (L1, L2), `cost_difference` (L1), `linear_equation`,
+  `ratio_split`, `work_rate`, `age_problem` (L2), and
+  `linear_equation_both_sides`, `discount`, `average_missing` (L3); bank
+  questions at Level 2-3 on find the unknown, speed and rates, fractions
+  and ratios, money and counting cleverly that contain a digit - 223 of
+  them (`db/migrations/020_pen_and_paper.sql`, applied 2026-10-01). The
+  digit rule leaves out family-relation puzzles mis-tagged "unknowns"
+  ("What is Pia to Mira?") and Level 1, whose bank questions on those
+  skills are all one step; it also misses a few with numbers written as
+  words ("Five friends shake hands..."). The Question Bank page shows a
+  ✏️ badge and has a checkbox to mark or unmark any question.
+- **Verified** end to end on a local server against the real database
+  with throwaway Level 2 and Level 3 children (deleted afterwards): the
+  setting read 180, rejected 1000, took 150 and was put back to 180, kids
+  got 401; every served question's flag matched its template or bank row
+  and got 150 s (pen & paper) or 90 s (normal); a pen & paper answer given
+  120 s after it was shown still counted while a normal one timed out;
+  fruit equations arrived with line breaks and no answer; a Level 3 logic
+  round served 3 bank pen & paper questions at 180 s. The quiz screen was
+  checked in the browser. `tsc`, `eslint`, `npm run build` clean.

@@ -188,6 +188,13 @@ Open http://localhost:3000.
   30-day history, streaks, checkup and review. Practice questions live in
   the main bank (marked "🎯 Practice only") but stay out of normal rounds
   (`questions.in_rotation = false`).
+- **Fruit equations** (like newspaper puzzles: 🍋 + 🍋 = 12, 🍋 + 🍎 = 10,
+  🍎 + 🍊 = 9, 🍋 + 🍊 = ?) are a generated math question at Level 1 and 2,
+  with new fruit and numbers every time. They and other multi-step
+  questions are **✏️ pen & paper** questions: a banner tells the kid to work
+  it out on paper and the timer is longer - 3 minutes by default, set in
+  Settings → Game settings (a child's own timer still wins if longer).
+  Admin can mark any bank question pen & paper on the Question Bank page.
 - The parent/admin dashboard is split into **tabs** instead of one long
   page: **🏠 Home** (pending reward requests - with a red count on the tab -
   and a short card per kid linking to their page), **👧 Kids** (full

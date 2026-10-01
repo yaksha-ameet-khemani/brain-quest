@@ -52,6 +52,7 @@ export interface QuestionRow {
   skill_step: 1 | 2 | 3 | null;
   is_active: boolean;
   in_rotation: boolean; // false = only served through a practice set (lib/practice.ts)
+  pen_paper: boolean; // served with the longer pen & paper timer (lib/questionTiming.ts)
   created_at: string;
 }
 
@@ -87,6 +88,7 @@ export interface RoundQuestionRow {
   is_correct: boolean | null;
   points_awarded: number;
   paused: boolean;
+  pen_paper: boolean;
 }
 
 export interface PointTransactionRow {

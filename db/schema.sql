@@ -120,6 +120,7 @@ create table questions (
   skill_step smallint check (skill_step between 1 and 3), -- 1 easier / 2 typical / 3 harder than typical for its level
   is_active boolean not null default true,
   in_rotation boolean not null default true, -- false = only served through a practice set, never in normal rounds
+  pen_paper boolean not null default false, -- multi-step: gets game_settings.pen_paper_seconds and a ✏️ label (lib/questionTiming.ts)
   created_at timestamptz not null default now()
 );
 create index questions_skill_key_idx on questions (skill_key);
@@ -202,6 +203,7 @@ create table round_questions (
   is_correct boolean,
   points_awarded int not null default 0,
   paused boolean not null default false, -- kid used the "pause timer" button on this one; see app/api/round/[roundId]/answer/route.ts
+  pen_paper boolean not null default false, -- snapshot of the question's (or math template's) pen & paper flag when served
   unique (round_id, position)
 );
 
@@ -229,7 +231,8 @@ create index point_transactions_child_idx on point_transactions (child_id, creat
 -- ---------------------------------------------------------------------------
 create table game_settings (
   id boolean primary key default true check (id),
-  negative_marking boolean not null default false
+  negative_marking boolean not null default false,
+  pen_paper_seconds smallint not null default 180 check (pen_paper_seconds between 30 and 600) -- timer for pen & paper questions
 );
 
 -- ---------------------------------------------------------------------------

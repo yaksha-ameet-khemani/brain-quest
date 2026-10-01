@@ -8,7 +8,7 @@ import Spinner from "@/components/Spinner";
 import PointsHistory from "@/components/PointsHistory";
 import { fileToResizedDataUrl, ImageTooLargeError } from "@/lib/imageResize";
 import { useAutoRefresh } from "@/components/AutoRefresh";
-import type { Level } from "@/lib/config";
+import { PEN_PAPER_MAX_SECONDS, PEN_PAPER_MIN_SECONDS, type Level } from "@/lib/config";
 
 interface CategoryStat {
   category: string;
@@ -707,6 +707,7 @@ export default function ParentDashboard({
               {negativeMarking ? "On" : "Off"}
             </button>
           </div>
+          <PenPaperSetting />
         </section>
 
         <section>
@@ -799,5 +800,84 @@ export default function ParentDashboard({
         </>
       )}
     </main>
+  );
+}
+
+/** How long "pen & paper" questions get (game_settings.pen_paper_seconds,
+ * lib/questionTiming.ts), set in minutes. */
+function PenPaperSetting() {
+  const [saved, setSaved] = useState<number | null>(null);
+  const [minutes, setMinutes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch("/api/admin/settings");
+      if (!res.ok) return;
+      const seconds: number = (await res.json()).penPaperSeconds;
+      setSaved(seconds);
+      setMinutes(String(seconds / 60));
+    })();
+  }, []);
+
+  async function save() {
+    const seconds = Math.round(Number(minutes) * 60);
+    if (!Number.isFinite(seconds) || seconds < PEN_PAPER_MIN_SECONDS || seconds > PEN_PAPER_MAX_SECONDS) {
+      setMessage(`Pick between ${PEN_PAPER_MIN_SECONDS / 60} and ${PEN_PAPER_MAX_SECONDS / 60} minutes.`);
+      return;
+    }
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ penPaperSeconds: seconds }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error ?? "Could not save.");
+        return;
+      }
+      setSaved(data.penPaperSeconds);
+      setMinutes(String(data.penPaperSeconds / 60));
+      setMessage("Saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+      <p className="text-sm font-semibold">✏️ Pen &amp; paper time</p>
+      <p className="mt-0.5 text-xs text-slate-500">
+        Multi-step questions (fruit equations, word problems with several steps) are marked ✏️ and get this much time,
+        so kids can work them out on paper. If a child&apos;s own timer is longer, they get that instead.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input
+          type="number"
+          inputMode="decimal"
+          min={PEN_PAPER_MIN_SECONDS / 60}
+          max={PEN_PAPER_MAX_SECONDS / 60}
+          step={0.5}
+          value={minutes}
+          disabled={saved === null}
+          onChange={(e) => setMinutes(e.target.value)}
+          className="w-24 rounded-xl border border-slate-200 p-2 text-center"
+        />
+        <span className="text-sm text-slate-500">minutes</span>
+        <button
+          onClick={save}
+          disabled={saving || saved === null || Math.round(Number(minutes) * 60) === saved}
+          className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {saving && <Spinner className="h-3.5 w-3.5" />}
+          Save
+        </button>
+        {message && <span className="text-sm text-slate-500">{message}</span>}
+      </div>
+    </div>
   );
 }

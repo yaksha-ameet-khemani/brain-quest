@@ -29,17 +29,19 @@ function shuffle<T>(arr: T[]): T[] {
 
 /** Builds options from a correct value + distractor values, shuffles them,
  * and returns the index the correct value landed on. De-dupes distractors
- * that collide with the correct answer or each other. */
+ * that collide with the correct answer or each other, and drops negative
+ * ones - every answer here is a count, price or amount, so a negative
+ * option would give itself away (small answers used to get fillers like -3). */
 function buildOptions(correct: number, distractors: number[]): { options: string[]; correctIndex: number } {
   const seen = new Set<number>([correct]);
   const unique = distractors.filter((d) => {
-    if (seen.has(d)) return false;
+    if (d < 0 || seen.has(d)) return false;
     seen.add(d);
     return true;
   });
   while (unique.length < 3) {
     const filler = correct + randInt(-5, 5) * (unique.length + 1);
-    if (!seen.has(filler)) {
+    if (filler >= 0 && !seen.has(filler)) {
       seen.add(filler);
       unique.push(filler);
     }
@@ -55,11 +57,84 @@ type Template = () => GeneratedQuestion;
 interface TemplateEntry {
   key: string;
   run: Template;
+  // Multi-step question that's worth working out on paper: served with the
+  // admin's longer "pen & paper" timer and a ✏️ label (see
+  // lib/questionTiming.ts and game_settings.pen_paper_seconds).
+  penPaper?: boolean;
+}
+
+// Fruit equations, like the newspaper puzzles: each fruit stands for a
+// number, each line gives one more fact, and the last line asks for a new
+// combination. Built from random values, so the answer is always worked
+// out by the code and every one is different.
+const FRUITS = ["🍎", "🍋", "🍊", "🍌", "🍇", "🍓", "🍐", "🍉", "🥭", "🍒"];
+
+function pickFruits(n: number): string[] {
+  return shuffle(FRUITS).slice(0, n);
+}
+
+function fruitQuestion(lines: string[], ask: string): string {
+  return `Each fruit stands for a number. Work it out:\n${lines.join("\n")}\n${ask} = ?`;
+}
+
+/** Level 1: three lines, small numbers - a double gives the first fruit,
+ * then each line hands on to the next fruit. */
+function fruitEquationLevel1(): GeneratedQuestion {
+  const [x, y, z] = pickFruits(3) as [string, string, string];
+  const a = randInt(2, 9);
+  const b = randInt(2, 9);
+  const c = randInt(2, 9);
+  const times = randInt(2, 3);
+  const correct = a + c;
+  const { options, correctIndex } = buildOptions(correct, [a + b, b + c, correct + 1]);
+  return {
+    category: "math",
+    questionText: fruitQuestion(
+      [`${Array(times).fill(x).join(" + ")} = ${a * times}`, `${x} + ${y} = ${a + b}`, `${y} + ${z} = ${b + c}`],
+      `${x} + ${z}`
+    ),
+    options,
+    correctIndex,
+    explanation: `${x} = ${a * times} / ${times} = ${a}. Then ${y} = ${a + b} - ${a} = ${b}. Then ${z} = ${b + c} - ${b} = ${c}. So ${x} + ${z} = ${a} + ${c} = ${correct}.`,
+  };
+}
+
+/** Level 2: three fruits, a subtraction line, and either a three-fruit sum
+ * or a product to finish - the multiplication step is where kids who rush
+ * add instead. */
+function fruitEquationLevel2(): GeneratedQuestion {
+  const [x, y, z] = pickFruits(3) as [string, string, string];
+  const a = randInt(2, 9);
+  const b = randInt(3, 9);
+  const c = randInt(1, b - 1);
+  const lines = [`${x} + ${x} + ${x} = ${3 * a}`, `${x} + ${y} + ${y} = ${a + 2 * b}`, `${y} - ${z} = ${b - c}`];
+  const solve = `${x} = ${3 * a} / 3 = ${a}. Then ${y} + ${y} = ${a + 2 * b} - ${a} = ${2 * b}, so ${y} = ${b}. Then ${z} = ${b} - ${b - c} = ${c}.`;
+  if (randInt(0, 1) === 0) {
+    const correct = a + b + c;
+    const { options, correctIndex } = buildOptions(correct, [a + b, correct + b, a + 2 * b + c]);
+    return {
+      category: "math",
+      questionText: fruitQuestion(lines, `${x} + ${y} + ${z}`),
+      options,
+      correctIndex,
+      explanation: `${solve} So ${x} + ${y} + ${z} = ${a} + ${b} + ${c} = ${correct}.`,
+    };
+  }
+  const correct = a * b + c;
+  const { options, correctIndex } = buildOptions(correct, [a + b + c, (a + b) * c, a * (b + c)]);
+  return {
+    category: "math",
+    questionText: fruitQuestion(lines, `${x} x ${y} + ${z}`),
+    options,
+    correctIndex,
+    explanation: `${solve} Multiply first: ${x} x ${y} = ${a} x ${b} = ${a * b}, then add ${z}: ${a * b} + ${c} = ${correct}.`,
+  };
 }
 
 // ---- Level 1 (younger kids: arithmetic, simple word problems, patterns) ----
 
 const level1Templates: TemplateEntry[] = [
+  { key: "fruit_equation", run: fruitEquationLevel1, penPaper: true },
   {
     key: "add",
     run: () => {
@@ -144,6 +219,7 @@ const level1Templates: TemplateEntry[] = [
   },
   {
     key: "cost_difference",
+    penPaper: true,
     run: () => {
       // cheap item + expensive item that differ by a fixed amount, total given
       const cheap = randInt(1, 8) / 2; // allows .5 values like the classic "ball and bat"
@@ -208,6 +284,7 @@ function gcd(a: number, b: number): number {
 // ---- Level 2 (older kid: percentages, ratios, simple algebra, geometry) ----
 
 const level2Templates: TemplateEntry[] = [
+  { key: "fruit_equation", run: fruitEquationLevel2, penPaper: true },
   {
     key: "percentage",
     run: () => {
@@ -226,6 +303,7 @@ const level2Templates: TemplateEntry[] = [
   },
   {
     key: "linear_equation",
+    penPaper: true,
     run: () => {
       const x2 = randInt(2, 15);
       const coeff = randInt(2, 6);
@@ -293,6 +371,7 @@ const level2Templates: TemplateEntry[] = [
   },
   {
     key: "ratio_split",
+    penPaper: true,
     run: () => {
       // ratio sharing
       const r1 = randInt(2, 5);
@@ -312,6 +391,7 @@ const level2Templates: TemplateEntry[] = [
   },
   {
     key: "work_rate",
+    penPaper: true,
     run: () => {
       // classic "cats catching mice" style rate-of-work problem, randomised
       const cats = randInt(3, 8);
@@ -331,6 +411,7 @@ const level2Templates: TemplateEntry[] = [
   },
   {
     key: "age_problem",
+    penPaper: true,
     run: () => {
       // Parametrised so the numbers always resolve cleanly:
       // mother = m * daughter now; in `years` years, mother = 2x daughter.
@@ -387,6 +468,7 @@ const level3Templates: TemplateEntry[] = [
   },
   {
     key: "linear_equation_both_sides",
+    penPaper: true,
     run: () => {
       const x0 = randInt(2, 15);
       const a = randInt(4, 9);
@@ -405,6 +487,7 @@ const level3Templates: TemplateEntry[] = [
   },
   {
     key: "discount",
+    penPaper: true,
     run: () => {
       const base = randInt(20, 200);
       const pct = [10, 20, 25, 50][randInt(0, 3)]!;
@@ -438,6 +521,7 @@ const level3Templates: TemplateEntry[] = [
   },
   {
     key: "average_missing",
+    penPaper: true,
     run: () => {
       const avg = randInt(16, 40); // floor of 16 guarantees the 4th number below always comes out positive
       const a = avg + randInt(-5, 5);
@@ -502,6 +586,7 @@ const level3Templates: TemplateEntry[] = [
 
 export interface GeneratedQuestionWithKey extends GeneratedQuestion {
   templateKey: string;
+  penPaper: boolean;
 }
 
 function templatesFor(level: Level): TemplateEntry[] {
@@ -523,7 +608,7 @@ export function templateKeysFor(level: Level): string[] {
 export function generateMathQuestionWithKey(level: Level): GeneratedQuestionWithKey {
   const templates = templatesFor(level);
   const entry = templates[randInt(0, templates.length - 1)]!;
-  return { ...entry.run(), templateKey: entry.key };
+  return { ...entry.run(), templateKey: entry.key, penPaper: entry.penPaper === true };
 }
 
 /** Regenerates a question from a specific template (by the key
@@ -533,7 +618,7 @@ export function generateMathQuestionWithKey(level: Level): GeneratedQuestionWith
 export function generateMathQuestionByKey(level: Level, templateKey: string): GeneratedQuestionWithKey {
   const templates = templatesFor(level);
   const entry = templates.find((t) => t.key === templateKey) ?? templates[randInt(0, templates.length - 1)]!;
-  return { ...entry.run(), templateKey: entry.key };
+  return { ...entry.run(), templateKey: entry.key, penPaper: entry.penPaper === true };
 }
 
 export function generateMathQuestion(level: Level): GeneratedQuestion {

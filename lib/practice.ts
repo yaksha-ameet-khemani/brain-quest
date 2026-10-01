@@ -1,7 +1,6 @@
 import "server-only";
 import { query, queryOne } from "@/lib/db";
 import { toDraft, type RoundQuestionDraft } from "@/lib/buildRound";
-import { effectiveAnswerSeconds, type Level } from "@/lib/config";
 import type { QuestionRow } from "@/lib/types";
 
 // Practice sets (db/migrations/018_practice_sets.sql): named groups of bank
@@ -149,25 +148,4 @@ export async function buildPracticeRoundQuestions(setId: string, roundNo: number
     [setId, roundNo]
   );
   return rows.map(toDraft);
-}
-
-/** The countdown for one question. A practice round mixes levels, so each
- * question gets its own level's time (or the child's override, as always) and
- * its level is sent along so the quiz screen can say why the timer changed.
- * Every other round kind uses the round's level and sends no level. */
-export async function questionTiming(
-  round: { id: string; kind: string; level: number },
-  position: number,
-  answerSecondsOverride: number | null
-): Promise<{ timeLimitSeconds: number; questionLevel: Level | null }> {
-  if (round.kind !== "practice") {
-    return { timeLimitSeconds: effectiveAnswerSeconds(round.level as Level, answerSecondsOverride), questionLevel: null };
-  }
-  const row = await queryOne<{ level: Level }>(
-    `SELECT q.level FROM round_questions rq JOIN questions q ON q.id = rq.question_id
-     WHERE rq.round_id = $1 AND rq.position = $2`,
-    [round.id, position]
-  );
-  const level = row?.level ?? (round.level as Level);
-  return { timeLimitSeconds: effectiveAnswerSeconds(level, answerSecondsOverride), questionLevel: level };
 }

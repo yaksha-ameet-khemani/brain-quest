@@ -49,6 +49,7 @@ export async function GET() {
     skillStep: r.skill_step,
     isActive: r.is_active,
     inRotation: r.in_rotation,
+    penPaper: r.pen_paper,
     attempts: Number(r.attempts),
     correct: Number(r.correct),
     successRate: Number(r.attempts) > 0 ? Number(r.correct) / Number(r.attempts) : null,
@@ -72,6 +73,7 @@ export async function POST(req: Request) {
   const concept: string | null = typeof body?.concept === "string" && body.concept.trim() ? body.concept.trim() : null;
   const skillKey: string | null = typeof body?.skillKey === "string" && body.skillKey ? body.skillKey : null;
   const skillStep: number | null = [1, 2, 3].includes(body?.skillStep) ? body.skillStep : null;
+  const penPaper = body?.penPaper === true;
   if (skillKey && !(await loadSkills()).some((s) => s.key === skillKey)) {
     return NextResponse.json({ error: "Unknown skill." }, { status: 400 });
   }
@@ -96,10 +98,10 @@ export async function POST(req: Request) {
   }
 
   const question = await queryOne<QuestionRow>(
-    `INSERT INTO questions (level, category, question_text, options, correct_option_index, explanation, concept, skill_key, skill_step)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO questions (level, category, question_text, options, correct_option_index, explanation, concept, skill_key, skill_step, pen_paper)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
-    [level, category, questionText, JSON.stringify(options), correctOptionIndex, explanation, concept, skillKey, skillStep]
+    [level, category, questionText, JSON.stringify(options), correctOptionIndex, explanation, concept, skillKey, skillStep, penPaper]
   );
   if (!question) return NextResponse.json({ error: "Could not create question." }, { status: 500 });
   return NextResponse.json({ question }, { status: 201 });

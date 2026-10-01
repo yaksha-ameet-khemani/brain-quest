@@ -23,6 +23,7 @@ export interface RoundQuestionDraft {
   options: string[]; // shuffled, display order
   correctIndex: number; // index into `options` above
   explanation: string;
+  penPaper: boolean; // served with the longer pen & paper timer - see lib/questionTiming.ts
 }
 
 function shuffleWithCorrectTracking(options: string[], correctIndex: number): { options: string[]; correctIndex: number } {
@@ -51,6 +52,7 @@ export function toDraft(q: QuestionRow): RoundQuestionDraft {
     options,
     correctIndex,
     explanation: q.explanation,
+    penPaper: q.pen_paper,
   };
 }
 
@@ -65,6 +67,7 @@ function generatedDraft(level: Level): RoundQuestionDraft {
     options: q!.options,
     correctIndex: q!.correctIndex,
     explanation: q!.explanation,
+    penPaper: q!.penPaper,
   };
 }
 
@@ -82,6 +85,7 @@ function generatedDraftByKey(level: Level, templateKey: string): RoundQuestionDr
     options: q.options,
     correctIndex: q.correctIndex,
     explanation: q.explanation,
+    penPaper: q.penPaper,
   };
 }
 
@@ -100,7 +104,7 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
   const wantedCategories = pickWeightedCategories(weights, QUESTIONS_PER_ROUND);
 
   const bankRows = await query<QuestionRow>(
-    "SELECT id, category, question_text, options, correct_option_index, explanation FROM questions WHERE level = $1 AND is_active = true AND in_rotation = true",
+    "SELECT id, category, question_text, options, correct_option_index, explanation, pen_paper FROM questions WHERE level = $1 AND is_active = true AND in_rotation = true",
     [level]
   );
   const bankByCategory = new Map<BankCategory, QuestionRow[]>(BANK_CATEGORIES.map((c) => [c, []]));
@@ -199,7 +203,7 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
  */
 export async function buildReviewQuestions(childId: string): Promise<RoundQuestionDraft[]> {
   const rows = await query<QuestionRow>(
-    `SELECT q.id, q.level, q.category, q.question_text, q.options, q.correct_option_index, q.explanation, q.concept, q.skill_key, q.is_active, q.created_at
+    `SELECT q.id, q.level, q.category, q.question_text, q.options, q.correct_option_index, q.explanation, q.concept, q.skill_key, q.is_active, q.pen_paper, q.created_at
      FROM (
        SELECT DISTINCT ON (rq.question_id) rq.question_id, rq.is_correct, rq.answered_at
        FROM round_questions rq
@@ -260,7 +264,7 @@ async function pickSimilarBankQuestion(
   const pools: QuestionRow[][] = [];
   if (original.skill_key) {
     const bySkill = await query<QuestionRow>(
-      `SELECT id, level, category, question_text, options, correct_option_index, explanation, concept, skill_key, is_active, created_at
+      `SELECT id, level, category, question_text, options, correct_option_index, explanation, concept, skill_key, is_active, pen_paper, created_at
        FROM questions WHERE level = $1 AND skill_key = $2 AND is_active = true AND in_rotation = true AND id != $3`,
       [original.level, original.skill_key, original.id]
     );
@@ -268,7 +272,7 @@ async function pickSimilarBankQuestion(
   }
 
   const byCategory = await query<QuestionRow>(
-    `SELECT id, level, category, question_text, options, correct_option_index, explanation, concept, skill_key, is_active, created_at
+    `SELECT id, level, category, question_text, options, correct_option_index, explanation, concept, skill_key, is_active, pen_paper, created_at
      FROM questions WHERE level = $1 AND category = $2 AND is_active = true AND in_rotation = true AND id != $3`,
     [original.level, original.category, original.id]
   );
@@ -314,7 +318,7 @@ type CheckupWrongItem =
 export async function buildCheckupQuestions(childId: string): Promise<RoundQuestionDraft[]> {
   const wrongBank = await query<QuestionRow & { answered_at: string }>(
     `SELECT q.id, q.level, q.category, q.question_text, q.options, q.correct_option_index, q.explanation,
-            q.concept, q.skill_key, q.is_active, q.created_at, latest.answered_at
+            q.concept, q.skill_key, q.is_active, q.pen_paper, q.created_at, latest.answered_at
      FROM (
        SELECT DISTINCT ON (rq.question_id) rq.question_id, rq.is_correct, rq.answered_at
        FROM round_questions rq

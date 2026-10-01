@@ -7,7 +7,8 @@ import { todayRangeUtc } from "@/lib/timezone";
 import { getLevelProgress } from "@/lib/levelProgress";
 import { getReviewProgress } from "@/lib/reviewProgress";
 import { getCheckupProgress } from "@/lib/checkupProgress";
-import { buildPracticeRoundQuestions, isPracticeSetAssigned, questionTiming } from "@/lib/practice";
+import { buildPracticeRoundQuestions, isPracticeSetAssigned } from "@/lib/practice";
+import { questionTiming } from "@/lib/questionTiming";
 import {
   BONUS_ROUNDS_PER_DAY,
   MAX_ROUNDS_PER_DAY,
@@ -181,8 +182,8 @@ async function createRound(
       const shownAt = position === 0 ? new Date().toISOString() : null;
       const inserted = await tx.query(
         `INSERT INTO round_questions
-           (round_id, position, source, question_id, template_key, category, question_text, options, correct_index, explanation, shown_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+           (round_id, position, source, question_id, template_key, category, question_text, options, correct_index, explanation, shown_at, pen_paper)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
          RETURNING category, question_text, options, shown_at`,
         [
           roundId,
@@ -196,6 +197,7 @@ async function createRound(
           d.correctIndex,
           d.explanation,
           shownAt,
+          d.penPaper,
         ]
       );
       if (position === 0) firstRow = inserted.rows[0];

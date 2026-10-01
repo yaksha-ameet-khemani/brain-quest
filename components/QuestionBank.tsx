@@ -20,6 +20,7 @@ interface BankQuestion {
   skillStep: 1 | 2 | 3 | null;
   isActive: boolean;
   inRotation: boolean;
+  penPaper: boolean;
   attempts: number;
   correct: number;
   successRate: number | null;
@@ -35,6 +36,7 @@ const BLANK_FORM = {
   concept: "",
   skillKey: "",
   skillStep: "2",
+  penPaper: false,
 };
 
 const STEP_LABELS: Record<number, string> = { 1: "easier", 2: "typical", 3: "harder" };
@@ -102,6 +104,7 @@ export default function QuestionBank() {
       concept: q.concept ?? "",
       skillKey: q.skillKey ?? "",
       skillStep: String(q.skillStep ?? 2),
+      penPaper: q.penPaper,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -140,6 +143,7 @@ export default function QuestionBank() {
         concept: form.concept.trim() || null,
         skillKey: form.skillKey || null,
         skillStep: form.skillKey ? Number(form.skillStep) : null,
+        penPaper: form.penPaper,
       };
       const res = await fetch(editingId ? `/api/admin/questions/${editingId}` : "/api/admin/questions", {
         method: editingId ? "PATCH" : "POST",
@@ -272,6 +276,21 @@ export default function QuestionBank() {
             {skills.find((sk) => sk.key === form.skillKey)?.description ??
               "The one skill this question mainly tests, and whether it is easier, typical or harder than other questions at its level."}
           </p>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.penPaper}
+              onChange={(e) => setForm((s) => ({ ...s, penPaper: e.target.checked }))}
+              className="mt-1"
+            />
+            <span>
+              ✏️ Pen &amp; paper question
+              <span className="block text-xs text-slate-400">
+                A multi-step question kids should work out on paper - it gets the longer pen &amp; paper time from Game
+                settings.
+              </span>
+            </span>
+          </label>
           {message && <p className="text-sm text-brand-700">{message}</p>}
           <div className="flex gap-2">
             <button
@@ -370,6 +389,14 @@ export default function QuestionBank() {
                     {!q.isActive && (
                       <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-600">
                         Archived
+                      </span>
+                    )}
+                    {q.penPaper && (
+                      <span
+                        className="rounded-full bg-sky-100 px-2 py-0.5 font-semibold text-sky-700"
+                        title="Gets the longer pen & paper timer"
+                      >
+                        ✏️ Pen &amp; paper
                       </span>
                     )}
                     {!q.inRotation && (

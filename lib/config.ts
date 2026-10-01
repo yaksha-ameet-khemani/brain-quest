@@ -24,6 +24,14 @@ export const LEVELS: Record<Level, { label: string; perQuestionSeconds: number }
 };
 export const MAX_LEVEL: Level = 3;
 
+// Multi-step questions marked "pen & paper" (questions.pen_paper, or a
+// generated template's penPaper) get this much time instead, unless the admin
+// changes it in Game settings (game_settings.pen_paper_seconds) or the
+// child's own timer is longer. See lib/questionTiming.ts.
+export const PEN_PAPER_DEFAULT_SECONDS = 180;
+export const PEN_PAPER_MIN_SECONDS = 30;
+export const PEN_PAPER_MAX_SECONDS = 600;
+
 /** A child's actual per-question countdown: the level default, unless an
  * admin has set a per-child override (children.answer_seconds) - see
  * app/api/admin/children/[childId]/timer/route.ts. */

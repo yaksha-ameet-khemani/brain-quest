@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { requireKid } from "@/lib/requireKid";
 import { sanitizeQuestion } from "@/lib/sanitizeQuestion";
-import { questionTiming } from "@/lib/practice";
+import { questionTiming } from "@/lib/questionTiming";
 import type { ChildRow, RoundQuestionRow, RoundRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";

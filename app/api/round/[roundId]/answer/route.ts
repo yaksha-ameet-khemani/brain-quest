@@ -3,7 +3,7 @@ import { query, queryOne, withTransaction } from "@/lib/db";
 import { requireKid } from "@/lib/requireKid";
 import { getBalance } from "@/lib/balance";
 import { getNegativeMarkingEnabled } from "@/lib/gameSettings";
-import { questionTiming } from "@/lib/practice";
+import { questionTiming } from "@/lib/questionTiming";
 import {
   PERFECT_ROUND_BONUS,
   POINTS_PER_CORRECT,

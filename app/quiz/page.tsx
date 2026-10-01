@@ -18,6 +18,7 @@ interface Question {
   shownAt: string;
   timeLimitSeconds?: number; // this question's own countdown, when it differs by question (practice rounds)
   questionLevel: Level | null; // set only in practice rounds, which mix levels
+  penPaper: boolean; // multi-step question with the longer pen & paper timer
 }
 
 interface RoundStart {
@@ -45,6 +46,12 @@ interface AnswerResult {
 }
 
 type Phase = "loading" | "error" | "question" | "feedback" | "done";
+
+// Pen & paper questions get minutes, so show m:ss rather than "180s".
+function formatSeconds(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
 
 const CATEGORY_LABEL: Record<string, string> = {
   math: "🔢 Math",
@@ -362,7 +369,7 @@ function QuizPageInner() {
               +{result.pointsAwarded} points{result.streak >= 3 ? " 🔥 streak bonus!" : ""}
             </p>
           )}
-          <p className="mt-4 text-sm font-medium text-slate-700">{question.questionText}</p>
+          <p className="mt-4 whitespace-pre-line text-sm font-medium text-slate-700">{question.questionText}</p>
 
           {result.isCorrect || answerRevealed ? (
             <>
@@ -422,6 +429,13 @@ function QuizPageInner() {
         </p>
       )}
 
+      {question.penPaper && (
+        <p className="rounded-xl bg-amber-50 px-3 py-2 text-center text-sm font-medium text-amber-800 ring-1 ring-amber-200">
+          ✏️ Pen &amp; paper question - grab a pen and paper and work it out step by step. You have{" "}
+          {formatSeconds(question.timeLimitSeconds ?? round.timeLimitSeconds)} for this one.
+        </p>
+      )}
+
       {round.kind === "checkup" && (
         <p className="rounded-xl bg-violet-50 px-3 py-2 text-center text-sm font-medium text-violet-700 ring-1 ring-violet-200">
           🧠 Quick checkup - similar to one you missed before. This one counts!
@@ -432,6 +446,7 @@ function QuizPageInner() {
         <span className="rounded-full bg-white px-3 py-1 text-sm font-medium text-slate-500 ring-1 ring-slate-100">
           {CATEGORY_LABEL[question.category] ?? question.category}
           {question.questionLevel && ` · Level ${question.questionLevel}`}
+          {question.penPaper && " · ✏️"}
         </span>
         <div className="flex items-center gap-2">
           <SoundToggle />
@@ -444,12 +459,12 @@ function QuizPageInner() {
                   : "bg-brand-100 text-brand-700"
             }`}
           >
-            {paused ? "⏸ Paused" : `⏱ ${secondsLeft}s`}
+            {paused ? "⏸ Paused" : `⏱ ${formatSeconds(secondsLeft)}`}
           </span>
         </div>
       </div>
 
-      <h2 className="text-xl font-semibold leading-snug">{question.questionText}</h2>
+      <h2 className="whitespace-pre-line text-xl font-semibold leading-snug">{question.questionText}</h2>
 
       <div className="grid gap-3">
         {question.options.map((opt, i) => (
