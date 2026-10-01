@@ -1477,3 +1477,32 @@ month-end analyzer to come later.
   two tips with no numbers and the admin Tips tab showed the reasons and
   mistakes - which saved his 5 real sets (the same content as checked).
   `tsc`, `eslint`, `npm run build` clean.
+
+**v40 update - installable app (PWA):** the user asked for the kids to be
+able to run it on phones/tablets as an app. Free - no app store, no paid
+service.
+
+- `app/manifest.ts` (served at /manifest.webmanifest): name "Brain Quest",
+  standalone, `orientation: any` (tablets get used sideways), brand-50
+  background/theme, icons. Icons are drawn from the same 🧠 as the
+  homepage title (Noto Color Emoji, open licence) on the brand blue:
+  `public/icons/icon-192.png`, `icon-512.png` (rounded corners),
+  `maskable-512.png` (full bleed, brain inside the safe zone for Android's
+  shaped icons), plus `app/apple-icon.png` (180, iOS rounds it) and
+  `app/icon.png` (favicon), which Next links automatically.
+- `app/layout.tsx`: `appleWebApp` (title, status bar) and theme colour.
+  Next 15.5 writes `mobile-web-app-capable`, so the older
+  `apple-mobile-web-app-capable` is added too for iPads before iOS 16.4.
+- `public/sw.js`, registered by `components/ServiceWorkerRegister.tsx` in
+  production only. **Deliberately caches no pages and no /api** - answers
+  are graded server-side and points must be current, so a stale page would
+  be worse than none. It only (a) shows `public/offline.html` when a page
+  can't load, and (b) caches `/_next/static/*` (content-hashed, never
+  changes) for faster starts. `next.config.mjs` serves sw.js with
+  no-cache headers so installed apps always pick up a new worker.
+- Verified on a local production build (`next start`): manifest, icons,
+  offline page and all head tags served; in Chrome the worker installed,
+  activated and controlled the page with the offline page cached; with the
+  server stopped, navigating showed the offline page instead of the
+  browser's error. The test worker was then unregistered from the browser.
+  `tsc`, `eslint`, `npm run build` clean.

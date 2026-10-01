@@ -188,6 +188,13 @@ Open http://localhost:3000.
   30-day history, streaks, checkup and review. Practice questions live in
   the main bank (marked "🎯 Practice only") but stay out of normal rounds
   (`questions.in_rotation = false`).
+- **Installable app (PWA):** kids can put Brain Quest on a phone or tablet
+  home screen and it opens full-screen with its own 🧠 icon, like an app.
+  Android (Chrome): open the site, then the ⋮ menu → "Install app" (or "Add
+  to Home screen"). iPhone/iPad (Safari): Share → "Add to Home Screen".
+  Updates arrive automatically - there's nothing to reinstall. With no
+  internet it shows a friendly "No internet right now" page; nothing is
+  cached for offline play, since every answer is checked by the server.
 - **💡 Tips every 3 days:** each child's wrong answers from the last
   finished 3-day period (practice included) are turned into tips from a
   fixed library (`lib/tipLibrary.ts`, 2-3 per skill plus "slow down" and
