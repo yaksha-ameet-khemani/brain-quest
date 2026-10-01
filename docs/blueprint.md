@@ -1506,3 +1506,40 @@ service.
   server stopped, navigating showed the offline page instead of the
   browser's error. The test worker was then unregistered from the browser.
   `tsc`, `eslint`, `npm run build` clean.
+
+**v41 update - no saved passwords, and logout after 5 idle minutes:** two
+requests for kids' shared phones/tablets.
+
+- **No "save password?":** browsers only offer to save (and later fill)
+  passwords for `<input type="password">`. `components/SecretInput.tsx`
+  renders a text box masked with `-webkit-text-security: disc`, with
+  autocomplete off and the ignore attributes of the common password-manager
+  apps (LastPass, 1Password, Bitwarden). On a browser without that style it
+  falls back to a real password box - it may offer to save there, but never
+  shows the password. Used for parent sign-in, Change PIN and Add another
+  parent; the email box has autocomplete off too. Kids' PIN entry was
+  already an on-screen keypad with no input field, so it never offered.
+- **Idle logout** (`components/IdleLogout.tsx`, in the root layout,
+  `IDLE_LOGOUT_MINUTES = 5`): taps, keys, wheel and scroll are activity -
+  a question's countdown or merely opening a page is not. The last-activity
+  time lives in localStorage, so a locked phone (timers paused) or an app
+  reopened the next day is caught as soon as it's back on screen, and tabs
+  share it. On a signed-in page (/dashboard, /quiz, /rewards, /history,
+  /parent...) going idle calls both logout routes and goes to
+  `/?loggedOut=idle`, which shows a short note. On a signed-out page (child
+  picker, PIN keypad, parent sign-in) an idle device has its old sessions
+  ended quietly first - found in review: otherwise opening the home page
+  after an hour and tapping "Parent Mode" walked straight back in on the old
+  30-day parent cookie. Known, accepted: a kid who pauses the timer and
+  thinks for over 5 minutes without touching the screen is logged out; their
+  round resumes where it was after signing in again. The enforcement is in
+  the browser (the session cookies still have their old lifetimes on the
+  server).
+- Verified on a local production build in Chrome: the sign-in box is
+  type="text" and still shows dots; with a kid session and last activity 6
+  minutes ago, /dashboard logged out to the note and /dashboard then
+  redirected; with an admin session and 6 idle minutes, opening the home
+  page ended it (Parent Mode went from 200 to redirecting to sign-in); with
+  activity 4 minutes ago the admin stayed signed in. Test sessions, storage
+  and the service worker were then cleared from the browser. `tsc`,
+  `eslint`, `npm run build` clean.

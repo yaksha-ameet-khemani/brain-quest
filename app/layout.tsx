@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import IdleLogout from "@/components/IdleLogout";
 
 export const metadata: Metadata = {
   title: "Brain Quest - Logic & Reward Quiz",
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           {children}
         </div>
         <ServiceWorkerRegister />
+        <IdleLogout />
       </body>
     </html>
   );

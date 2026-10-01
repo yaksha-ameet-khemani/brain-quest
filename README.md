@@ -195,6 +195,13 @@ Open http://localhost:3000.
   Updates arrive automatically - there's nothing to reinstall. With no
   internet it shows a friendly "No internet right now" page; nothing is
   cached for offline play, since every answer is checked by the server.
+- **Safer on shared kids' devices:** phones and browsers aren't offered to
+  save the parent password or a new PIN (those boxes aren't real password
+  fields - the dots come from a style - so a child can't later open Parent
+  Mode with a saved password). And after **5 minutes with no taps, typing
+  or scrolling**, the device is logged out (kid and parent) and returns to
+  the child picker with a short note - including when a phone was locked or
+  the app was reopened later (`IDLE_LOGOUT_MINUTES` in `lib/config.ts`).
 - **💡 Tips every 3 days:** each child's wrong answers from the last
   finished 3-day period (practice included) are turned into tips from a
   fixed library (`lib/tipLibrary.ts`, 2-3 per skill plus "slow down" and

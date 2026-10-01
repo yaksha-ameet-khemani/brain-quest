@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import SecretInput from "@/components/SecretInput";
 import Spinner from "@/components/Spinner";
 
 export default function ParentLoginPage() {
@@ -63,13 +64,13 @@ export default function ParentLoginPage() {
         <input
           type="email"
           required
+          autoComplete="off"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="rounded-xl border border-slate-200 p-3"
         />
-        <input
-          type="password"
+        <SecretInput
           required
           minLength={8}
           placeholder="Password (min. 8 characters)"

@@ -13,6 +13,7 @@ import PeriodReports from "@/components/PeriodReports";
 import PracticeSets from "@/components/PracticeSets";
 import SkillMap from "@/components/SkillMap";
 import TipsHistory from "@/components/TipsHistory";
+import SecretInput from "@/components/SecretInput";
 import Spinner from "@/components/Spinner";
 
 interface LogEntry {
@@ -134,10 +135,8 @@ function PinEditor({ childId }: { childId: string }) {
         Set a new 4-6 digit PIN for this child. The current PIN can&apos;t be shown - it&apos;s stored scrambled.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <input
-          type="password"
+        <SecretInput
           inputMode="numeric"
-          autoComplete="off"
           maxLength={6}
           placeholder="New PIN"
           value={pin}

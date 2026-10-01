@@ -63,6 +63,11 @@ export function nextLevel(level: Level): Level | null {
   return level < MAX_LEVEL ? ((level + 1) as Level) : null;
 }
 
+// A signed-in page (kid or parent) with no taps, typing or scrolling for this
+// long logs everyone out on that device - see components/IdleLogout.tsx.
+// A question's own countdown doesn't count as activity.
+export const IDLE_LOGOUT_MINUTES = 5;
+
 export const QUESTIONS_PER_ROUND = 5;
 export const MAX_ROUNDS_PER_DAY = 3;
 

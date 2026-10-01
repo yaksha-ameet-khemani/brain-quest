@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import Avatar from "@/components/Avatar";
+import SecretInput from "@/components/SecretInput";
 import Spinner from "@/components/Spinner";
 import PointsHistory from "@/components/PointsHistory";
 import { fileToResizedDataUrl, ImageTooLargeError } from "@/lib/imageResize";
@@ -777,8 +778,7 @@ export default function ParentDashboard({
               onChange={(e) => setNewParent((s) => ({ ...s, email: e.target.value }))}
               className="rounded-xl border border-slate-200 p-3"
             />
-            <input
-              type="password"
+            <SecretInput
               required
               minLength={8}
               placeholder="Password (min. 8 characters)"

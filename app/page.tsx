@@ -3,10 +3,12 @@ import { query } from "@/lib/db";
 import type { ChildRow } from "@/lib/types";
 import Avatar from "@/components/Avatar";
 import AutoRefresh from "@/components/AutoRefresh";
+import { IDLE_LOGOUT_MINUTES } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ loggedOut?: string }> }) {
+  const { loggedOut } = await searchParams;
   const children = await query<Pick<ChildRow, "id" | "name" | "avatar" | "photo_data_url" | "level">>(
     "SELECT id, name, avatar, photo_data_url, level FROM children ORDER BY created_at ASC"
   );
@@ -18,6 +20,12 @@ export default async function HomePage() {
         <h1 className="text-4xl font-bold tracking-tight text-brand-700">🧠 Brain Quest</h1>
         <p className="mt-2 text-slate-600">Who&apos;s playing today?</p>
       </header>
+
+      {loggedOut === "idle" && (
+        <p className="rounded-xl bg-amber-50 px-4 py-3 text-center text-sm text-amber-800 ring-1 ring-amber-200">
+          🔒 Logged out after {IDLE_LOGOUT_MINUTES} minutes without any activity. Tap your picture to start again.
+        </p>
+      )}
 
       <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
         {children.map((child) => (
