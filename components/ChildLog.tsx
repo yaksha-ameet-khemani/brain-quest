@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { Level } from "@/lib/config";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatDuration } from "@/lib/format";
 import Avatar from "@/components/Avatar";
 import { fileToResizedDataUrl, ImageTooLargeError } from "@/lib/imageResize";
@@ -15,6 +15,7 @@ import SkillMap from "@/components/SkillMap";
 import TipsHistory from "@/components/TipsHistory";
 import SecretInput from "@/components/SecretInput";
 import Spinner from "@/components/Spinner";
+import { addDays } from "@/lib/timezone";
 
 interface LogEntry {
   roundId: string;
@@ -29,6 +30,75 @@ interface LogEntry {
   answeredAt: string | null;
   pointsAwarded: number;
   durationSeconds: number | null;
+  kind: string;
+  paused: boolean;
+  penPaper: boolean;
+}
+
+interface LogSummary {
+  total: number;
+  correct: number;
+  wrong: number;
+  timeout: number;
+  totalSeconds: number;
+}
+
+type DatePreset = "all" | "today" | "yesterday" | "7d" | "30d" | "custom";
+type ResultFilter = "all" | "correct" | "wrong" | "timeout";
+
+interface LogFilters {
+  preset: DatePreset;
+  from: string;
+  to: string;
+  category: string;
+  kind: string;
+  result: ResultFilter;
+  q: string;
+}
+
+const NO_FILTERS: LogFilters = { preset: "all", from: "", to: "", category: "", kind: "", result: "all", q: "" };
+
+const DATE_PRESETS: { key: DatePreset; label: string }[] = [
+  { key: "all", label: "All time" },
+  { key: "today", label: "Today" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "7d", label: "Last 7 days" },
+  { key: "30d", label: "Last 30 days" },
+  { key: "custom", label: "Pick dates" },
+];
+
+const KIND_LABEL: Record<string, string> = {
+  standard: "Daily round",
+  review: "Review",
+  checkup: "Checkup",
+};
+
+/** The inclusive local-day range a preset covers, given the server's "today". */
+function presetRange(preset: DatePreset, today: string): { from: string; to: string } {
+  switch (preset) {
+    case "today":
+      return { from: today, to: today };
+    case "yesterday":
+      return { from: addDays(today, -1), to: addDays(today, -1) };
+    case "7d":
+      return { from: addDays(today, -6), to: today };
+    case "30d":
+      return { from: addDays(today, -29), to: today };
+    default:
+      return { from: "", to: "" };
+  }
+}
+
+function logQueryString(f: LogFilters, today: string): string {
+  const range = f.preset === "custom" ? { from: f.from, to: f.to } : presetRange(f.preset, today);
+  const sp = new URLSearchParams();
+  if (range.from) sp.set("from", range.from);
+  if (range.to) sp.set("to", range.to);
+  if (f.category) sp.set("category", f.category);
+  if (f.kind) sp.set("kind", f.kind);
+  if (f.result !== "all") sp.set("result", f.result);
+  if (f.q.trim()) sp.set("q", f.q.trim());
+  return sp.toString();
 }
 
 interface ChildInfo {
@@ -493,8 +563,14 @@ export default function ChildLog({
   const tabs = CHILD_TABS.filter((t) => isAdmin || !t.adminOnly);
   const [child, setChild] = useState<ChildInfo | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
+  const [summary, setSummary] = useState<LogSummary | null>(null);
+  const [logLimit, setLogLimit] = useState(0);
+  const [today, setToday] = useState("");
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "correct" | "wrong">("all");
+  const [logLoading, setLogLoading] = useState(false);
+  const [filters, setFilters] = useState<LogFilters>(NO_FILTERS);
+  const [searchDraft, setSearchDraft] = useState("");
+  const latestRequest = useRef(0);
   const [tab, setTab] = useState<ChildTab>(tabs.find((t) => t.key === initialTab)?.key ?? "report");
   const [logins, setLogins] = useState<string[] | null>(null);
 
@@ -516,30 +592,57 @@ export default function ChildLog({
     })();
   }, [tab, logins, childId]);
 
+  // A custom range with only one end filled in is still a valid filter
+  // (open-ended); "today" is unknown until the first response, and date
+  // presets need it, so the first load is always unfiltered.
+  const queryString = today ? logQueryString(filters, today) : "";
+
   async function refreshLog() {
-    const res = await fetch(`/api/parent/children/${childId}/log`);
-    if (res.ok) {
-      const data = await res.json();
-      setChild(data.child);
-      setLog(data.log);
+    const request = ++latestRequest.current;
+    setLogLoading(true);
+    try {
+      const res = await fetch(`/api/parent/children/${childId}/log${queryString ? `?${queryString}` : ""}`);
+      if (request !== latestRequest.current) return; // a newer filter change already won
+      if (res.ok) {
+        const data = await res.json();
+        setChild(data.child);
+        setLog(data.log);
+        setSummary(data.summary);
+        setLogLimit(data.limit);
+        setToday(data.today);
+      }
+    } finally {
+      if (request === latestRequest.current) {
+        setLoading(false);
+        setLogLoading(false);
+      }
     }
-    setLoading(false);
   }
 
   useEffect(() => {
     refreshLog();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childId]);
+  }, [childId, queryString]);
 
-  const filtered = log.filter((l) => {
-    if (filter === "correct") return l.isCorrect === true;
-    if (filter === "wrong") return l.isCorrect === false;
-    return true;
-  });
+  // Search waits for a short pause in typing rather than fetching per key.
+  useEffect(() => {
+    const timer = setTimeout(() => setFilters((f) => (f.q === searchDraft ? f : { ...f, q: searchDraft })), 400);
+    return () => clearTimeout(timer);
+  }, [searchDraft]);
 
-  const totalTime = log.reduce((sum, l) => sum + (l.durationSeconds ?? 0), 0);
-  const correctCount = log.filter((l) => l.isCorrect === true).length;
-  const wrongCount = log.filter((l) => l.isCorrect === false).length;
+  function updateFilters(patch: Partial<LogFilters>) {
+    setFilters((f) => ({ ...f, ...patch }));
+  }
+
+  function clearFilters() {
+    setFilters(NO_FILTERS);
+    setSearchDraft("");
+  }
+
+  const hasFilters = JSON.stringify({ ...filters, q: filters.q.trim() }) !== JSON.stringify(NO_FILTERS);
+  const accuracy = summary && summary.correct + summary.wrong > 0
+    ? Math.round((summary.correct / (summary.correct + summary.wrong)) * 100)
+    : null;
 
   if (loading) {
     return <p className="pt-10 text-center text-slate-500">Loading…</p>;
@@ -632,41 +735,145 @@ export default function ChildLog({
         </section>
       ) : (
         <>
-          <section className="grid grid-cols-4 gap-2 text-center text-xs">
-            <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
-              <p className="text-lg font-bold">{log.length}</p>
-              <p className="text-slate-500">Attempted</p>
+          <section className="grid gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+            <div className="flex flex-wrap gap-2">
+              {DATE_PRESETS.map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() =>
+                    updateFilters(
+                      p.key === "custom" && filters.preset !== "custom"
+                        ? { preset: "custom", ...presetRange(filters.preset === "all" ? "7d" : filters.preset, today) }
+                        : { preset: p.key }
+                    )
+                  }
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                    filters.preset === p.key ? "bg-brand-500 text-white" : "bg-white text-slate-500 ring-1 ring-slate-200"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
             </div>
-            <div className="rounded-xl bg-emerald-50 p-3">
-              <p className="text-lg font-bold text-emerald-600">{correctCount}</p>
-              <p className="text-slate-500">Correct</p>
+            {filters.preset === "custom" && (
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <label className="flex items-center gap-1.5 text-slate-500">
+                  From
+                  <input
+                    type="date"
+                    value={filters.from}
+                    max={filters.to || today}
+                    onChange={(e) => updateFilters({ from: e.target.value })}
+                    className="rounded-xl border border-slate-200 p-1.5 text-slate-700"
+                  />
+                </label>
+                <label className="flex items-center gap-1.5 text-slate-500">
+                  To
+                  <input
+                    type="date"
+                    value={filters.to}
+                    min={filters.from || undefined}
+                    max={today}
+                    onChange={(e) => updateFilters({ to: e.target.value })}
+                    className="rounded-xl border border-slate-200 p-1.5 text-slate-700"
+                  />
+                </label>
+              </div>
+            )}
+            <div className="grid gap-2 sm:grid-cols-3">
+              <select
+                value={filters.category}
+                onChange={(e) => updateFilters({ category: e.target.value })}
+                className="rounded-xl border border-slate-200 bg-white p-2 text-sm"
+                aria-label="Section"
+              >
+                <option value="">All sections</option>
+                {Object.entries(CATEGORY_LABEL).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={filters.kind}
+                onChange={(e) => updateFilters({ kind: e.target.value })}
+                className="rounded-xl border border-slate-200 bg-white p-2 text-sm"
+                aria-label="Round type"
+              >
+                <option value="">All round types</option>
+                {Object.entries(KIND_LABEL).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="search"
+                value={searchDraft}
+                onChange={(e) => setSearchDraft(e.target.value)}
+                placeholder="Search questions…"
+                className="rounded-xl border border-slate-200 p-2 text-sm"
+              />
             </div>
-            <div className="rounded-xl bg-rose-50 p-3">
-              <p className="text-lg font-bold text-rose-500">{wrongCount}</p>
-              <p className="text-slate-500">Wrong</p>
-            </div>
-            <div className="rounded-xl bg-brand-50 p-3">
-              <p className="text-lg font-bold text-brand-600">{formatDuration(totalTime)}</p>
-              <p className="text-slate-500">Total time</p>
-            </div>
+            {hasFilters && (
+              <button onClick={clearFilters} className="justify-self-start text-xs font-semibold text-slate-500 underline">
+                Clear all filters
+              </button>
+            )}
           </section>
 
-          <div className="flex gap-2">
-            {(["all", "correct", "wrong"] as const).map((f) => (
+          {summary && (
+            <section className="grid grid-cols-4 gap-2 text-center text-xs">
+              <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
+                <p className="text-lg font-bold">{summary.total}</p>
+                <p className="text-slate-500">Attempted</p>
+              </div>
+              <div className="rounded-xl bg-emerald-50 p-3">
+                <p className="text-lg font-bold text-emerald-600">{summary.correct}</p>
+                <p className="text-slate-500">Correct{accuracy !== null && ` · ${accuracy}%`}</p>
+              </div>
+              <div className="rounded-xl bg-rose-50 p-3">
+                <p className="text-lg font-bold text-rose-500">{summary.wrong}</p>
+                <p className="text-slate-500">Wrong</p>
+              </div>
+              <div className="rounded-xl bg-brand-50 p-3">
+                <p className="text-lg font-bold text-brand-600">{formatDuration(summary.totalSeconds)}</p>
+                <p className="text-slate-500">Total time</p>
+              </div>
+            </section>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            {(
+              [
+                ["all", "All", summary?.total],
+                ["correct", "Correct", summary?.correct],
+                ["wrong", "Wrong", summary?.wrong],
+                ["timeout", "Timed out", summary?.timeout],
+              ] as const
+            ).map(([key, label, count]) => (
               <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold capitalize ${
-                  filter === f ? "bg-brand-500 text-white" : "bg-white text-slate-500 ring-1 ring-slate-200"
+                key={key}
+                onClick={() => updateFilters({ result: key })}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                  filters.result === key ? "bg-brand-500 text-white" : "bg-white text-slate-500 ring-1 ring-slate-200"
                 }`}
               >
-                {f}
+                {label}
+                {count !== undefined && ` (${count})`}
               </button>
             ))}
+            {logLoading && <Spinner className="h-4 w-4 text-slate-400" />}
           </div>
 
-          <section className="grid gap-3">
-            {filtered.map((l, i) => (
+          {logLimit > 0 && log.length >= logLimit && (
+            <p className="text-xs text-slate-500">
+              Showing the newest {logLimit}. Narrow the dates to see older answers.
+            </p>
+          )}
+
+          <section className={`grid gap-3 ${logLoading ? "opacity-60" : ""}`}>
+            {log.map((l, i) => (
               <div
                 key={`${l.roundId}-${l.position}-${i}`}
                 className={`rounded-2xl p-4 shadow-sm ring-1 ${
@@ -674,8 +881,15 @@ export default function ChildLog({
                 }`}
               >
                 <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span className="capitalize">{l.category}</span>
-                  <span>
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span>{CATEGORY_LABEL[l.category] ?? l.category}</span>
+                    <span className="rounded-full bg-white/70 px-2 py-0.5 ring-1 ring-slate-200">
+                      {KIND_LABEL[l.kind] ?? l.kind}
+                    </span>
+                    {l.penPaper && <span title="Pen & paper question">✏️</span>}
+                    {l.paused && <span title="Kid paused the timer on this one">⏸</span>}
+                  </span>
+                  <span className="shrink-0 text-right">
                     {l.answeredAt ? new Date(l.answeredAt).toLocaleString() : "—"} ·{" "}
                     {l.durationSeconds !== null ? formatDuration(l.durationSeconds) : "—"}
                   </span>
@@ -699,11 +913,15 @@ export default function ChildLog({
                   ))}
                 </div>
                 <p className="mt-2 text-xs text-slate-400">
-                  {l.isCorrect ? `+${l.pointsAwarded} pts` : l.selectedIndex === null ? "Timed out" : "Incorrect"}
+                  {l.isCorrect ? `+${l.pointsAwarded} pts` : l.selectedIndex === -1 ? "Timed out" : "Incorrect"}
                 </p>
               </div>
             ))}
-            {filtered.length === 0 && <p className="text-center text-sm text-slate-500">No attempts yet.</p>}
+            {log.length === 0 && (
+              <p className="text-center text-sm text-slate-500">
+                {hasFilters ? "No answers match these filters." : "No attempts yet."}
+              </p>
+            )}
           </section>
         </>
       )}
