@@ -1543,3 +1543,38 @@ requests for kids' shared phones/tablets.
   activity 4 minutes ago the admin stayed signed in. Test sessions, storage
   and the service worker were then cleared from the browser. `tsc`,
   `eslint`, `npm run build` clean.
+
+**v42 update - filters on the Full log:** the user asked for a date filter
+and any others worth having on the per-child Full log (every question a kid
+answered, right or wrong).
+
+- **Filters:** date presets (All time, Today, Yesterday, Last 7 days, Last
+  30 days) plus "Pick dates" with From/To; result (All / Correct / Wrong /
+  Timed out, each chip showing its count); section; round type (Daily
+  round / Review / Checkup); and a text search over the question and its
+  options (typed text waits 400 ms before fetching). "Clear all filters"
+  shows when any is on. Practice answers stay out, as before - they have
+  the Practice tab.
+- **All in SQL** (`app/api/parent/children/[childId]/log/route.ts`, query
+  string `from`, `to`, `category`, `kind`, `result`, `q`). Days are local
+  (APP_TIMEZONE); the route returns `today` so the browser builds the
+  presets from the server's day, not the device clock. The four summary
+  boxes count every answer matching the filters except `result`, so the
+  result chips can show their own counts. The list is capped at 500 with a
+  "narrow the dates" note when it hits the cap. Postgres rejects a
+  parameter no clause uses, so the timezone is only passed with a date
+  filter. Search escapes `%`, `_` and `\`.
+- **Found while building it:** the old log fetched only the newest 300
+  answers and worked out its totals from those - Banku had 615, so half his
+  history and the totals were silently wrong. And timeouts are stored as
+  `selected_index = -1` (see app/api/round/[roundId]/answer), not null, so
+  the old "Timed out" label never showed; they read "Incorrect". Both fixed.
+- Each card now also shows its round type, ✏️ for pen & paper and ⏸ if the
+  kid paused the timer.
+- Verified read-only against production with a forged admin cookie: every
+  filter and combination returned the right rows, and counts matched
+  independent SQL (all 615/371 correct, 6-7 Oct 45/23, spatial 230/111,
+  checkup 100/57, timeouts Banku 17, Melina 3; literal `%` and `_` search).
+  Clicked through in Chrome on the local dev server. After the user's
+  redeploy, confirmed live: bad dates rejected, 17 timeouts, filtered
+  counts, and the new page chunk served. `tsc`, `eslint` clean.

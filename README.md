@@ -139,7 +139,10 @@ Open http://localhost:3000.
   never a side-by-side list of every kid's activity at once (see
   `docs/blueprint.md` v8/v19 for why that distinction matters here).
 - A signed-in parent sees their own children's full detail: every question
-  ever asked, what was picked, right or wrong, and how long it took, plus a
+  ever asked, what was picked, right or wrong, and how long it took
+  (the **Full log** tab, filterable by date, result incl. timed out,
+  section, round type and a text search, with totals for the filtered
+  set), plus a
   per-child **Report** tab - a plain-English summary of how they're doing,
   strengths/weaknesses by category (last 30 days), a 14-vs-14-day trend,
   specific concepts/math skills they're struggling with, and a nudge if
