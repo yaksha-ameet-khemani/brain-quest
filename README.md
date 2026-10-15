@@ -55,6 +55,8 @@ Open http://localhost:3000.
   (`WEAK_SKILL_SHARE`) the slot picks an unseen question on a skill the
   child gets right 50% of the time or less (`WEAK_SKILL_MAX_PCT`, from the
   skill map). Weak skill first, then a question, so small skills get a turn.
+- Level 1 has 40-45 questions each for clocks, measuring, folding and
+  blocks (v46 added 25 each), so weak-skill picks don't run dry.
 - Three levels: 1 (younger), 2 (older), 3 (most advanced) - a parent assigns
   a child's level, and admin can change it any time.
 - Math questions are generated from templates (`lib/mathQuestions.ts`) so

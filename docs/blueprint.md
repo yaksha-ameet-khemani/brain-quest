@@ -1671,3 +1671,23 @@ the skills, not just the category.
   Level 1 template. `tsc`, `eslint` clean.
 - **Review date:** the user wants to look at the data again in about a
   month (around 15 Nov 2026) and decide whether to keep the 50% share.
+
+**v46 update - 100 new Level 1 questions for weak spatial skills:** v45 makes
+standard rounds lean toward weak skills and never repeats a question there,
+so a thin skill runs dry fast. The four thinnest Banku is weak in each had
+15-20 Level 1 questions: clocks and angles (16), measuring (15), folding
+and cutting (18), cubes and blocks (20).
+- `db/migrations/022_level1_weak_spatial_skills.sql` adds 25 spatial
+  questions to each (insert only), skill steps 1-3 mixed (29 / 39 / 32).
+  Text-only like the rest of the bank: telling time, quarter past/to,
+  elapsed time, clock-hand angles; cm/m, g/kg, litres, rulers not starting
+  at 0, perimeter, estimating; folds, creases, layers, punched holes, paint
+  prints, symmetry folds; counting blocks in layers, cube faces, views from
+  above/front, a dice's opposite faces. Answer positions balanced (25 each).
+- **Checked:** every draft compared with the whole bank by word overlap;
+  9 were too close to existing questions (cube faces/corners/edges, half an
+  hour, minute hand "points at the N", the letter-fold question) and were
+  replaced. All 100 then re-solved from a shuffled, answer-free sheet, with
+  every answer matching the key. Dry run in a rolled-back transaction: 25
+  new per skill, all with 4 options, no exact duplicate texts. Applied to
+  production 2026-10-15 with the user's go-ahead (bank now 3,630).
