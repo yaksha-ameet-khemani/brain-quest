@@ -108,7 +108,8 @@ home page and enter that PIN to play.
 ## 8. Automated backups (optional, but recommended, still free)
 
 `.github/workflows/backup.yml` dumps every table daily and commits it
-straight into **this repo**, at `backup/<date>/backup-<time>.json.enc`. This
+straight into **this repo**, at `backup/<date>/backup-<time>.json.gz.enc`
+(gzipped before encryption; backups before v44 are plain `.json.enc`). This
 repo is public, so that file is encrypted (AES-256-GCM) before it's ever
 written to disk - without the key below, it's unreadable noise to anyone
 browsing the repo. Until you do this setup, the scheduled workflow runs and
@@ -157,9 +158,10 @@ scheduled one on the same day.
 
 **Reading a backup back:**
 ```bash
-BACKUP_ENCRYPTION_KEY=<your key> node scripts/decryptBackup.mjs backup/2026-09-18/backup-191500.json.enc
+BACKUP_ENCRYPTION_KEY=<your key> node scripts/decryptBackup.mjs backup/2026-10-16/backup-191500.json.gz.enc
 ```
-This writes the decrypted JSON next to the input file. There's no
+This writes the decrypted JSON next to the input file (`backup-191500.json`).
+It reads both the new gzipped files and the older plain `.json.enc` ones. There's no
 one-command restore-into-Postgres script yet, since it's never been needed;
 ask for one if the day comes.
 

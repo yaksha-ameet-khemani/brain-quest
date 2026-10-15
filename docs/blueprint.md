@@ -1615,3 +1615,27 @@ reported that Banku "got 2 same questions" and asked if the bank had run out.
   3 checkups gave 6 generated rechecks, 0 matches; review still builds.
   The new lookup took about 0.3 s from this machine (one round trip).
   `tsc`, `eslint`, `npm run build` clean.
+
+**v44 update - smaller backups (gzip before encrypting):** the daily
+encrypted backup had grown from 0.9 MB (17 Sep) to 5.9 MB (14 Oct), about
+2 GB a year of git history in this public repo, which deleting files
+never shrinks. The user first asked about deleting all old backups; that
+frees nothing on GitHub (history keeps them) and loses restore points, so
+the agreed fix was making each new backup smaller instead.
+- **Where the size came from:** pretty-printed JSON (~4 MB: `questions`
+  1.8 MB, `round_questions` 0.8 MB, `point_transactions` 0.3 MB), plus
+  base64's 33%. The plan agreed with the user was to drop `questions` from
+  daily backups and keep a weekly full one; gzip turned out to be the
+  better fix, since it shrinks everything and keeps every table in every
+  daily backup, so that split wasn't needed.
+- **Change:** `scripts/backup.mjs` and `app/api/admin/backup/route.ts`
+  write compact JSON, gzip it, then encrypt (`encryptBackup` now takes a
+  Buffer). Files are named `backup-<time>.json.gz.enc`.
+  `scripts/decryptBackup.mjs` detects the gzip magic bytes after
+  decrypting, so it reads both new files and every older `.json.enc`.
+  Same key, same AES-256-GCM layout.
+- **Verified:** ran the new script against production (read-only) with a
+  throwaway key: 1.05 MB vs 5.9 MB, decrypted back with all 16 tables'
+  row counts intact. An old-format file made by the previous script under
+  the same throwaway key still decrypts with the new decrypt script. `tsc`
+  clean.

@@ -1,3 +1,4 @@
+import { gzipSync } from "zlib";
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { requireAdmin } from "@/lib/requireParent";
@@ -33,14 +34,12 @@ export async function POST() {
   const backedUpAt = new Date();
   const rowCounts = Object.fromEntries(BACKUP_TABLES.map((t) => [t, tables[t]!.length]));
   const payload = JSON.stringify(
-    { manifest: { backedUpAt: backedUpAt.toISOString(), rowCounts, trigger: "admin-button" }, tables },
-    null,
-    2
+    { manifest: { backedUpAt: backedUpAt.toISOString(), rowCounts, trigger: "admin-button" }, tables }
   );
 
   let encrypted: string;
   try {
-    encrypted = encryptBackup(payload);
+    encrypted = encryptBackup(gzipSync(payload));
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Encryption failed." }, { status: 500 });
   }
@@ -48,7 +47,7 @@ export async function POST() {
   const dateKey = backedUpAt.toISOString().slice(0, 10); // YYYY-MM-DD
   const timeKey = backedUpAt.toISOString().slice(11, 19).replace(/:/g, ""); // HHMMSS
   const repo = process.env.BACKUP_GITHUB_REPO ?? "yaksha-ameet-khemani/brain-quest";
-  const filePath = `backup/${dateKey}/backup-${timeKey}.json.enc`;
+  const filePath = `backup/${dateKey}/backup-${timeKey}.json.gz.enc`;
 
   const ghRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
     method: "PUT",

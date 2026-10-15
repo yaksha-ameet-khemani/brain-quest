@@ -23,14 +23,14 @@ function getKey(): Buffer {
   return key;
 }
 
-/** Encrypts `plaintext` and returns a single base64 string: a random iv (12
+/** Encrypts `data` (the gzipped JSON dump) and returns a single base64 string: a random iv (12
  * bytes) + the GCM auth tag (16 bytes) + the ciphertext, all concatenated -
  * self-contained, nothing but the key itself is needed to decrypt it. */
-export function encryptBackup(plaintext: string): string {
+export function encryptBackup(data: Buffer): string {
   const key = getKey();
   const iv = randomBytes(IV_LENGTH);
   const cipher = createCipheriv(ALGORITHM, key, iv);
-  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const ciphertext = Buffer.concat([cipher.update(data), cipher.final()]);
   const authTag = cipher.getAuthTag();
   return Buffer.concat([iv, authTag, ciphertext]).toString("base64");
 }

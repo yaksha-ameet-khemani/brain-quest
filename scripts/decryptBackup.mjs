@@ -10,6 +10,7 @@
 // is ever lost, every backup ever committed is permanently unreadable.
 import { readFile, writeFile } from "node:fs/promises";
 import { createDecipheriv } from "node:crypto";
+import { gunzipSync } from "node:zlib";
 
 const inPath = process.argv[2];
 if (!inPath) {
@@ -37,9 +38,15 @@ async function main() {
 
   const decipher = createDecipheriv("aes-256-gcm", key, iv);
   decipher.setAuthTag(authTag);
-  const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  // Backups since v44 are gzipped before encryption (.json.gz.enc); older
+  // ones are plain JSON (.json.enc). The gzip magic bytes tell them apart.
+  const isGzip = decrypted[0] === 0x1f && decrypted[1] === 0x8b;
+  const plaintext = (isGzip ? gunzipSync(decrypted) : decrypted).toString("utf8");
 
-  const outPath = inPath.endsWith(".enc") ? inPath.slice(0, -".enc".length) : `${inPath}.decrypted.json`;
+  const outPath = inPath.endsWith(".enc")
+    ? inPath.slice(0, -".enc".length).replace(/\.json\.gz$/, ".json")
+    : `${inPath}.decrypted.json`;
   await writeFile(outPath, plaintext);
   console.log("Decrypted to", outPath);
 }

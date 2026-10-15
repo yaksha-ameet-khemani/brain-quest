@@ -1,6 +1,7 @@
 // Dumps every table, encrypts the dump, and writes it to
-// backup/<date>/backup-<time>.json.enc (relative to the repo root this
-// script is run from) - the GitHub Actions workflow that calls this then
+// backup/<date>/backup-<time>.json.gz.enc (relative to the repo root this
+// script is run from) - gzipped first (JSON shrinks ~5-10x; encrypted bytes
+// can't be compressed afterwards) - the GitHub Actions workflow that calls this then
 // commits that file straight into this same (public) repo. Deliberately
 // dumps everything as-is, hashes and PII included - a backup missing the
 // fields needed to actually restore isn't much of a backup - but it's
@@ -11,6 +12,7 @@ import { Pool } from "pg";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createCipheriv, randomBytes } from "node:crypto";
+import { gzipSync } from "node:zlib";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -50,10 +52,10 @@ const TABLES = [
   "child_tips",
 ];
 
-function encrypt(plaintext) {
+function encrypt(data) {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const ciphertext = Buffer.concat([cipher.update(data), cipher.final()]);
   const authTag = cipher.getAuthTag();
   return Buffer.concat([iv, authTag, ciphertext]).toString("base64");
 }
@@ -72,17 +74,15 @@ async function main() {
 
   const backedUpAt = new Date();
   const payload = JSON.stringify(
-    { manifest: { backedUpAt: backedUpAt.toISOString(), rowCounts, trigger: "scheduled" }, tables },
-    null,
-    2
+    { manifest: { backedUpAt: backedUpAt.toISOString(), rowCounts, trigger: "scheduled" }, tables }
   );
-  const encrypted = encrypt(payload);
+  const encrypted = encrypt(gzipSync(payload));
 
   const dateKey = backedUpAt.toISOString().slice(0, 10); // YYYY-MM-DD
   const timeKey = backedUpAt.toISOString().slice(11, 19).replace(/:/g, ""); // HHMMSS
   const outDir = path.join("backup", dateKey);
   await mkdir(outDir, { recursive: true });
-  const outPath = path.join(outDir, `backup-${timeKey}.json.enc`);
+  const outPath = path.join(outDir, `backup-${timeKey}.json.gz.enc`);
   await writeFile(outPath, encrypted);
 
   console.log("Backup complete:", outPath, rowCounts);

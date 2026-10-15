@@ -241,7 +241,8 @@ Open http://localhost:3000.
 
 **Backups**
 - `.github/workflows/backup.yml` dumps every table daily and commits it
-  straight into **this same repo**, at `backup/<date>/backup-<time>.json.enc`.
+  straight into **this same repo**, at `backup/<date>/backup-<time>.json.gz.enc`
+  (gzipped, ~1 MB; files before v44 are plain `.json.enc`, ~6 MB).
   Since this repo is public, the dump is AES-256-GCM encrypted before it
   ever touches disk - unreadable to anyone without the encryption key,
   which lives only in GitHub's secrets, Vercel's environment variables, and
