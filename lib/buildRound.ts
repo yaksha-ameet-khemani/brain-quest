@@ -2,6 +2,9 @@ import "server-only";
 import { query } from "@/lib/db";
 import { generateMathQuestionWithKey, generateMathQuestionByKey, type GeneratedQuestionWithKey } from "@/lib/mathQuestions";
 import { getCategoryWeights, pickWeightedCategories } from "@/lib/categoryWeights";
+import { buildSkillMap } from "@/lib/skillMap";
+import { MATH_TEMPLATE_SKILL } from "@/lib/skills";
+import { templateKeysFor } from "@/lib/mathQuestions";
 import {
   BANK_CATEGORIES,
   GENERATED_REPEAT_WINDOW_DAYS,
@@ -10,6 +13,8 @@ import {
   MAX_REVIEW_QUESTIONS,
   QUESTIONS_PER_ROUND,
   RECENT_QUESTION_WINDOW_HOURS,
+  WEAK_SKILL_MAX_PCT,
+  WEAK_SKILL_SHARE,
   type BankCategory,
   type Level,
 } from "@/lib/config";
@@ -104,6 +109,22 @@ function generatedDraftByKey(level: Level, templateKey: string, avoid: Set<strin
   );
 }
 
+/** Skills this child is clearly weak in - skill map state "learning" or
+ * "guessing" with at most WEAK_SKILL_MAX_PCT right recently. What standard
+ * rounds lean toward. */
+async function weakSkillKeys(childId: string, level: Level): Promise<Set<string>> {
+  const { rows } = await buildSkillMap(childId, level);
+  return new Set(
+    rows
+      .filter(
+        (r) =>
+          (r.state === "learning" || r.state === "guessing") &&
+          r.recentCorrect * 100 <= WEAK_SKILL_MAX_PCT * r.recentAnswered
+      )
+      .map((r) => r.key)
+  );
+}
+
 /** Picks QUESTIONS_PER_ROUND questions for a round. Which category each of
  * the 5 slots draws from is a weighted random pick per child (admin-tunable
  * via lib/categoryWeights.ts - e.g. weight logic higher for a child who's
@@ -113,13 +134,21 @@ function generatedDraftByKey(level: Level, templateKey: string, avoid: Set<strin
  * back gracefully (never fails to build a round) if a category's bank pool
  * is empty at this child's level - tries another category with something
  * available, then generated math as the final fallback since that's always
- * available. */
+ * available.
+ *
+ * Weak skills: after a slot's category is chosen, WEAK_SKILL_SHARE of the
+ * time it is narrowed to the child's weak skills in that category (bank
+ * questions by skill_key, math by template via MATH_TEMPLATE_SKILL). If the
+ * child has no weak skill there, or no unseen question on one, the slot is filled
+ * the normal way - weights alone still decide how many of each category. */
 export async function buildRoundQuestions(level: Level, childId: string): Promise<RoundQuestionDraft[]> {
   const weights = await getCategoryWeights(childId);
   const wantedCategories = pickWeightedCategories(weights, QUESTIONS_PER_ROUND);
+  const weakSkills = await weakSkillKeys(childId, level);
+  const weakTemplates = templateKeysFor(level).filter((k) => weakSkills.has(MATH_TEMPLATE_SKILL[k] ?? ""));
 
   const bankRows = await query<QuestionRow>(
-    "SELECT id, category, question_text, options, correct_option_index, explanation, pen_paper FROM questions WHERE level = $1 AND is_active = true AND in_rotation = true",
+    "SELECT id, category, question_text, options, correct_option_index, explanation, pen_paper, skill_key FROM questions WHERE level = $1 AND is_active = true AND in_rotation = true",
     [level]
   );
   const bankByCategory = new Map<BankCategory, QuestionRow[]>(BANK_CATEGORIES.map((c) => [c, []]));
@@ -153,11 +182,22 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
   const usedThisRound = new Set<string>();
   const avoidGenerated = await recentGeneratedTexts(childId);
 
-  function pickFromCategory(category: BankCategory): QuestionRow | null {
-    const pool = (bankByCategory.get(category) ?? []).filter((q) => !usedThisRound.has(q.id));
+  function pickFromCategory(category: BankCategory, weakOnly = false): QuestionRow | null {
+    const pool = (bankByCategory.get(category) ?? []).filter(
+      (q) => !usedThisRound.has(q.id) && (!weakOnly || (q.skill_key !== null && weakSkills.has(q.skill_key)))
+    );
     if (pool.length === 0) return null;
 
     const neverShown = pool.filter((q) => !lastShownAt.has(q.id));
+    if (weakOnly) {
+      // Pick the skill first, then a question on it - otherwise a weak skill
+      // with many bank questions (rotation: 77 at Level 1) crowds out one with
+      // few (clocks: 16). Never repeats a question: weak pools are small, and
+      // a remembered answer isn't practice. The caller falls back to a normal pick.
+      if (neverShown.length === 0) return null;
+      const skill = pickRandom([...new Set(neverShown.map((q) => q.skill_key))]);
+      return pickRandom(neverShown.filter((q) => q.skill_key === skill));
+    }
     if (neverShown.length > 0) return pickRandom(neverShown);
 
     // This child has now seen every active question in this bucket at
@@ -171,12 +211,17 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
 
   const drafts: RoundQuestionDraft[] = [];
   for (const category of wantedCategories) {
+    const leanWeak = Math.random() < WEAK_SKILL_SHARE;
     if (category === "math") {
-      drafts.push(generatedDraft(level, avoidGenerated));
+      drafts.push(
+        leanWeak && weakTemplates.length > 0
+          ? generatedDraftByKey(level, pickRandom(weakTemplates), avoidGenerated)
+          : generatedDraft(level, avoidGenerated)
+      );
       continue;
     }
 
-    let picked = pickFromCategory(category);
+    let picked = (leanWeak ? pickFromCategory(category, true) : null) ?? pickFromCategory(category);
     if (!picked) {
       // Nothing left in the requested category - try any other bank
       // category that still has something, before finally falling back to

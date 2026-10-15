@@ -50,6 +50,11 @@ Open http://localhost:3000.
   always the sum of that child's transactions.
 
 **Content**
+- Standard rounds lean toward each child's weak skills: category weights
+  still decide each slot's category, then half the time
+  (`WEAK_SKILL_SHARE`) the slot picks an unseen question on a skill the
+  child gets right 50% of the time or less (`WEAK_SKILL_MAX_PCT`, from the
+  skill map). Weak skill first, then a question, so small skills get a turn.
 - Three levels: 1 (younger), 2 (older), 3 (most advanced) - a parent assigns
   a child's level, and admin can change it any time.
 - Math questions are generated from templates (`lib/mathQuestions.ts`) so

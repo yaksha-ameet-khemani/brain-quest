@@ -1639,3 +1639,35 @@ the agreed fix was making each new backup smaller instead.
   row counts intact. An old-format file made by the previous script under
   the same throwaway key still decrypts with the new decrypt script. `tsc`
   clean.
+
+**v45 update - rounds lean toward weak skills (plan step 3(d)):** Banku's
+16-25 Sep vs 6-15 Oct comparison showed lots of math practice worked (53% ->
+72%) but more random spatial didn't (55% -> 47%; clocks, blocks, folding,
+rotation, counting shapes all at or under 50%). So practice has to aim at
+the skills, not just the category.
+- **Rule** (`lib/buildRound.ts`, standard rounds only, bonus-level ones
+  included): category weights pick each slot's category exactly as before.
+  Then, with probability `WEAK_SKILL_SHARE` (0.5, the user's choice), the
+  slot is narrowed to the child's weak skills in that category: bank
+  questions by `skill_key`, math by template via `MATH_TEMPLATE_SKILL`.
+  "Weak" = skill map state learning/guessing AND at most
+  `WEAK_SKILL_MAX_PCT` (50) of recent answers right. Learning alone means
+  under 75%, which was 19 of Banku's 31 skills, so leaning toward it
+  changed almost nothing in testing.
+- **Bank picks choose the skill first, then a never-shown question on
+  it.** Picking uniformly from all weak questions let rotation (77 Level 1
+  questions) take 17 of 31 weak picks over clocks (16 questions). A weak
+  pick never repeats a question; when a weak skill has no unseen question
+  left, or the child has no weak skill in that category, the slot is filled
+  the normal way. Thin skills (clocks 16, measuring 15, folding 18, blocks
+  20 at Level 1) will run dry, so new questions for them are the next step.
+- Checkup, review and practice are unchanged. Cost: one skill-map query
+  (60 days of answers) per standard round.
+- **Verified** by building rounds for real children against production
+  (read-only, nothing saved): Banku over 30 rounds got 28 of 47 spatial
+  slots on weak skills (clocks 4, blocks 4, folding 4, rotation 6, counting
+  shapes 5), no duplicates within a round; Lavin and Melina got their own
+  weak skills. Weak math was 0 for Banku: his weak fractions skill has no
+  Level 1 template. `tsc`, `eslint` clean.
+- **Review date:** the user wants to look at the data again in about a
+  month (around 15 Nov 2026) and decide whether to keep the 50% share.

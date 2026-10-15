@@ -149,6 +149,15 @@ export const SKILL_MASTERED_DISTINCT = 8;
 // A weak skill with fewer active bank questions than this at the child's
 // level (and no math generator behind it) is flagged "thin in bank".
 export const SKILL_THIN_BANK = 20;
+// Standard rounds lean toward weak skills (lib/buildRound.ts): category
+// weights still decide each slot's category, then this share of slots picks
+// a question on one of the child's weak skills in that category, if there is
+// one. 0.5 = half the time, the user's choice on 15 Oct 2026 - to be reviewed
+// with a month of data. "Weak" = skill map state "learning" or "guessing" AND
+// at most WEAK_SKILL_MAX_PCT right in recent answers: "learning" alone is
+// anything under 75%, which was 19 of Banku's skills - too many to focus on.
+export const WEAK_SKILL_SHARE = 0.5;
+export const WEAK_SKILL_MAX_PCT = 50;
 
 // Points are deliberately close across levels: a harder question should feel
 // harder, not pay a wildly different daily wage. See docs/blueprint.md
