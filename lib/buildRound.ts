@@ -1,9 +1,11 @@
 import "server-only";
 import { query } from "@/lib/db";
-import { generateMathQuestions, generateMathQuestionByKey } from "@/lib/mathQuestions";
+import { generateMathQuestionWithKey, generateMathQuestionByKey, type GeneratedQuestionWithKey } from "@/lib/mathQuestions";
 import { getCategoryWeights, pickWeightedCategories } from "@/lib/categoryWeights";
 import {
   BANK_CATEGORIES,
+  GENERATED_REPEAT_WINDOW_DAYS,
+  GENERATED_REROLL_ATTEMPTS,
   MAX_CHECKUP_QUESTIONS,
   MAX_REVIEW_QUESTIONS,
   QUESTIONS_PER_ROUND,
@@ -11,7 +13,7 @@ import {
   type BankCategory,
   type Level,
 } from "@/lib/config";
-import { pickLeastRecentlySeen, pickNotRecentlySeen } from "@/lib/recentQuestions";
+import { generateAvoiding, pickLeastRecentlySeen, pickNotRecentlySeen } from "@/lib/recentQuestions";
 import type { QuestionRow } from "@/lib/types";
 
 export interface RoundQuestionDraft {
@@ -56,26 +58,23 @@ export function toDraft(q: QuestionRow): RoundQuestionDraft {
   };
 }
 
-function generatedDraft(level: Level): RoundQuestionDraft {
-  const [q] = generateMathQuestions(level, 1);
-  return {
-    source: "generated",
-    questionId: null,
-    templateKey: q!.templateKey,
-    category: q!.category,
-    questionText: q!.questionText,
-    options: q!.options,
-    correctIndex: q!.correctIndex,
-    explanation: q!.explanation,
-    penPaper: q!.penPaper,
-  };
+/** Exact texts of every generated question this child was shown in the
+ * last GENERATED_REPEAT_WINDOW_DAYS days (any round kind). Generated math has
+ * no question id, so the text is the only way to tell "12 x 10 rectangle"
+ * from "12 x 9 rectangle". */
+async function recentGeneratedTexts(childId: string): Promise<Set<string>> {
+  const rows = await query<{ question_text: string }>(
+    `SELECT DISTINCT rq.question_text
+     FROM round_questions rq
+     JOIN rounds r ON r.id = rq.round_id
+     WHERE r.child_id = $1 AND rq.source = 'generated' AND rq.shown_at IS NOT NULL
+       AND rq.shown_at > now() - make_interval(days => $2)`,
+    [childId, GENERATED_REPEAT_WINDOW_DAYS]
+  );
+  return new Set(rows.map((r) => r.question_text));
 }
 
-/** Regenerates a question from a specific math template (new random
- * numbers, same underlying skill) - used by buildCheckupQuestions to
- * "recheck" a template the child previously got wrong. */
-function generatedDraftByKey(level: Level, templateKey: string): RoundQuestionDraft {
-  const q = generateMathQuestionByKey(level, templateKey);
+function draftFromGenerated(q: GeneratedQuestionWithKey): RoundQuestionDraft {
   return {
     source: "generated",
     questionId: null,
@@ -87,6 +86,22 @@ function generatedDraftByKey(level: Level, templateKey: string): RoundQuestionDr
     explanation: q.explanation,
     penPaper: q.penPaper,
   };
+}
+
+/** A fresh generated math question the child hasn't seen recently - see
+ * recentGeneratedTexts() and generateAvoiding(). */
+function generatedDraft(level: Level, avoid: Set<string>): RoundQuestionDraft {
+  return draftFromGenerated(generateAvoiding(() => generateMathQuestionWithKey(level), avoid, GENERATED_REROLL_ATTEMPTS));
+}
+
+/** Regenerates a question from a specific math template (new random
+ * numbers, same underlying skill) - used by buildCheckupQuestions to
+ * "recheck" a template the child previously got wrong. Same recent-repeat
+ * avoidance as generatedDraft, but always the same template. */
+function generatedDraftByKey(level: Level, templateKey: string, avoid: Set<string>): RoundQuestionDraft {
+  return draftFromGenerated(
+    generateAvoiding(() => generateMathQuestionByKey(level, templateKey), avoid, GENERATED_REROLL_ATTEMPTS)
+  );
 }
 
 /** Picks QUESTIONS_PER_ROUND questions for a round. Which category each of
@@ -136,6 +151,7 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
   }
 
   const usedThisRound = new Set<string>();
+  const avoidGenerated = await recentGeneratedTexts(childId);
 
   function pickFromCategory(category: BankCategory): QuestionRow | null {
     const pool = (bankByCategory.get(category) ?? []).filter((q) => !usedThisRound.has(q.id));
@@ -156,7 +172,7 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
   const drafts: RoundQuestionDraft[] = [];
   for (const category of wantedCategories) {
     if (category === "math") {
-      drafts.push(generatedDraft(level));
+      drafts.push(generatedDraft(level, avoidGenerated));
       continue;
     }
 
@@ -175,7 +191,7 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
       usedThisRound.add(picked.id);
       drafts.push(toDraft(picked));
     } else {
-      drafts.push(generatedDraft(level));
+      drafts.push(generatedDraft(level, avoidGenerated));
     }
   }
 
@@ -360,9 +376,10 @@ export async function buildCheckupQuestions(childId: string): Promise<RoundQuest
 
   const drafts: RoundQuestionDraft[] = [];
   const usedBankIds = new Set<string>();
+  const avoidGenerated = await recentGeneratedTexts(childId);
   for (const item of chosen) {
     if (item.kind === "generated") {
-      drafts.push(generatedDraftByKey(item.level, item.templateKey));
+      drafts.push(generatedDraftByKey(item.level, item.templateKey, avoidGenerated));
       continue;
     }
     const substitute = await pickSimilarBankQuestion(item.row, usedBankIds, childId);

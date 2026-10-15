@@ -1578,3 +1578,40 @@ answered, right or wrong).
   Clicked through in Chrome on the local dev server. After the user's
   redeploy, confirmed live: bad dates rejected, 17 timeouts, filtered
   counts, and the new page chunk served. `tsc`, `eslint` clean.
+
+**v43 update - generated math doesn't repeat recent questions:** the user
+reported that Banku "got 2 same questions" and asked if the bank had run out.
+
+- **What it actually was (checked against his real history first):** not
+  the bank. "A rectangle is 12 cm long and 10 cm wide. What is its
+  perimeter?" - a *generated* `rectangle_perimeter` question - was served
+  at 11:23 and again at 11:25 UTC on 14 Oct, in back-to-back standard
+  rounds. Generators pick random numbers with no memory of what a child
+  was given, and several have small ranges (`rate_time`: 2-5 minutes x 3-8
+  items), so exact repeats are common: 7 in his last 14 days, "It takes 5
+  minutes to wash one plate..." four times in four days. The bank is far
+  from used up: at Level 1 he has seen 285 of 1,370 in-rotation questions,
+  and no bank question has repeated outside practice since 21 Sep (before
+  v24). The only later bank repeats are the fixed 60-question practice
+  set, which he replayed on 7 Oct.
+- **Fix** (`lib/buildRound.ts`): before building a standard or checkup
+  round, `recentGeneratedTexts()` loads the exact text of every generated
+  question this child was shown in the last `GENERATED_REPEAT_WINDOW_DAYS`
+  (14, `lib/config.ts`), any round kind. Each generated slot goes through
+  `generateAvoiding()` (pure, `lib/recentQuestions.ts`): re-roll up to
+  `GENERATED_REROLL_ATTEMPTS` (10) times while the text is in that set,
+  then add the chosen text to it, so two slots in the same round can't
+  match either. Standard rounds re-roll the whole pick (any template);
+  checkup rechecks re-roll inside the same template, so it still tests the
+  skill that was missed. If all 10 tries collide, the last one is served -
+  a repeat beats an empty slot. Exact text is the only identity a
+  generated question has (no question id). One extra indexed query per
+  round; no schema change.
+- **Verified** by compiling the real `lib/buildRound.ts` (scratch tsconfig,
+  `server-only` stubbed) and building rounds for Banku against production,
+  which only reads: 15 standard rounds gave 32 generated questions with 0
+  matches against his 105 recent texts and no duplicates within a round,
+  where the same number of draws through the old path gave 4 matches;
+  3 checkups gave 6 generated rechecks, 0 matches; review still builds.
+  The new lookup took about 0.3 s from this machine (one round trip).
+  `tsc`, `eslint`, `npm run build` clean.

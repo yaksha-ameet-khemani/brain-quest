@@ -103,6 +103,14 @@ export const MAX_CHECKUP_QUESTIONS = 5;
 // Rolling window, not calendar days, so there's no gap around midnight.
 export const RECENT_QUESTION_WINDOW_HOURS = 48;
 
+// Generated (math) questions have no fixed row to remember, so the same
+// random numbers can come up again - Banku got "12 cm by 10 cm rectangle"
+// twice two minutes apart. Before serving one, lib/buildRound.ts re-rolls it
+// (up to GENERATED_REROLL_ATTEMPTS times) if this child was shown that exact
+// question text within the last GENERATED_REPEAT_WINDOW_DAYS days.
+export const GENERATED_REPEAT_WINDOW_DAYS = 14;
+export const GENERATED_REROLL_ATTEMPTS = 10;
+
 // Per-child report tunables (lib/childReport.ts) - how far back each section
 // looks, and how many attempts something needs before it's called a
 // strength/weakness/trend at all, so one lucky or unlucky guess never skews

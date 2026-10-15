@@ -86,6 +86,9 @@ Open http://localhost:3000.
   least once too - tracked across their *entire* history, not just a recent
   window, so a heavy play day can't push an earlier question back into
   rotation early.
+- Generated math questions (new random numbers each time) are re-rolled
+  if the child was shown that exact question in the last 14 days, so the
+  same "12 cm by 10 cm rectangle" can't come back a round later.
 - A child who finishes all of a day's rounds with better than 75% accuracy
   unlocks 3 bonus rounds at the next level up, for that day - a repeatable
   daily stretch-goal, not a permanent level change. (A Level 3 child is

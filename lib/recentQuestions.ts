@@ -36,3 +36,20 @@ export function pickLeastRecentlySeen<T extends { id: string }>(
   }
   return best;
 }
+
+/** Calls `generate` until it produces something whose `questionText` isn't
+ * in `avoid`, at most `attempts` times; if every try collides, the last one
+ * is returned anyway (a repeat beats an empty slot). The chosen text is added
+ * to `avoid`, so later picks in the same round can't repeat it either. */
+export function generateAvoiding<T extends { questionText: string }>(
+  generate: () => T,
+  avoid: Set<string>,
+  attempts: number
+): T {
+  let q = generate();
+  for (let i = 1; i < attempts && avoid.has(q.questionText); i++) {
+    q = generate();
+  }
+  avoid.add(q.questionText);
+  return q;
+}
