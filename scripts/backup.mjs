@@ -38,6 +38,7 @@ const TABLES = [
   "children",
   "child_logins",
   "child_category_weights",
+  "child_math_rules",
   "skills",
   "questions",
   "practice_sets",

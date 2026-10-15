@@ -1691,3 +1691,44 @@ and cutting (18), cubes and blocks (20).
   every answer matching the key. Dry run in a rolled-back transaction: 25
   new per skill, all with 4 options, no exact duplicate texts. Applied to
   production 2026-10-15 with the user's go-ahead (bank now 3,630).
+
+**v47 update - per-child math question types (normal / once a week / never),
+and a sharing bug:** the user asked that Banku stop getting plain sums ("What
+is 10 - 2", "2 x 20"), percentage and age puzzles (not taught yet), and see
+rectangle area/perimeter at most once a week. Percentage and age come from
+Level 2 templates he meets in bonus rounds; plain sums are the Level 1
+`add` / `subtract` / `multiply` templates.
+- **`child_math_rules`** (migration 023): one row per child per template
+  that isn't normal, rule `never` or `weekly`. `lib/mathRules.ts`
+  `mathTemplateGate()` gives a round builder an `allowed(key)` check:
+  never-rules are out, and a weekly template is out if any round started in
+  the last 7 days (rolling, any kind) served it; `markServed` stops a weekly
+  one appearing twice in the round being built. Weekly is per template, so
+  rectangle area and rectangle perimeter can each come up once a week.
+- **Where it applies** (`lib/buildRound.ts`): standard rounds (bonus level
+  too) - random math picks, v45's weak-skill math picks, and the fallback
+  when a bank category is empty; and checkup rechecks - a wrong answer on a
+  blocked type isn't rechecked. `generateMathQuestionWithKey` takes the
+  check and picks only allowed templates (all of them if a child's rules
+  ever block every one at a level, so a round can always be built). Review
+  and practice use bank questions only, so they're unaffected.
+- **Admin UI:** "🔢 Math question types" card on the child page's Settings
+  tab (`GET/PUT /api/admin/children/[childId]/math-rules`, admin-only),
+  listing every template at the child's level and the bonus level above.
+  Added to the backup table list.
+- **Bug fixed:** `share_equally` built a total as a multiple of 4 and shared
+  it among 2-4 friends, so a 3-way share often had no whole answer ("32
+  candies among 3 friends" -> 10.666666666666666 as the "correct" option).
+  6 of the 23 Banku got and 1 of Melina's 4 were like that. The answer is
+  now picked first and the total built from it; 2,000 samples, 0 fractions.
+- **Verified** by running the real round builders against production
+  inside a transaction that also created the table and Banku's rules, then
+  rolled back: 25 Level 1 and 25 Level 2 standard rounds served no add /
+  subtract / multiply / percentage / age_problem, and no rectangle types
+  (both had been served to him within 7 days); a checkup skipped blocked
+  types. With the test profile and weekly rules, types not served that week
+  did appear, never twice in one round. `tsc`, `eslint`, build clean.
+- Side effect noted: at the bonus level Banku's weak-skill lean now lands
+  mostly on `ratio_split` (his weak fractions/ratios skill, and the only
+  allowed Level 2 template on it) - about 40 of 63 math slots across 25
+  test rounds.

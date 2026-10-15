@@ -5,6 +5,7 @@ import { getCategoryWeights, pickWeightedCategories } from "@/lib/categoryWeight
 import { buildSkillMap } from "@/lib/skillMap";
 import { MATH_TEMPLATE_SKILL } from "@/lib/skills";
 import { templateKeysFor } from "@/lib/mathQuestions";
+import { mathTemplateGate } from "@/lib/mathRules";
 import {
   BANK_CATEGORIES,
   GENERATED_REPEAT_WINDOW_DAYS,
@@ -94,9 +95,12 @@ function draftFromGenerated(q: GeneratedQuestionWithKey): RoundQuestionDraft {
 }
 
 /** A fresh generated math question the child hasn't seen recently - see
- * recentGeneratedTexts() and generateAvoiding(). */
-function generatedDraft(level: Level, avoid: Set<string>): RoundQuestionDraft {
-  return draftFromGenerated(generateAvoiding(() => generateMathQuestionWithKey(level), avoid, GENERATED_REROLL_ATTEMPTS));
+ * recentGeneratedTexts() and generateAvoiding() - from a template the
+ * child's math rules allow (lib/mathRules.ts). */
+function generatedDraft(level: Level, avoid: Set<string>, allowed: (templateKey: string) => boolean): RoundQuestionDraft {
+  return draftFromGenerated(
+    generateAvoiding(() => generateMathQuestionWithKey(level, allowed), avoid, GENERATED_REROLL_ATTEMPTS)
+  );
 }
 
 /** Regenerates a question from a specific math template (new random
@@ -146,6 +150,7 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
   const wantedCategories = pickWeightedCategories(weights, QUESTIONS_PER_ROUND);
   const weakSkills = await weakSkillKeys(childId, level);
   const weakTemplates = templateKeysFor(level).filter((k) => weakSkills.has(MATH_TEMPLATE_SKILL[k] ?? ""));
+  const mathGate = await mathTemplateGate(childId);
 
   const bankRows = await query<QuestionRow>(
     "SELECT id, category, question_text, options, correct_option_index, explanation, pen_paper, skill_key FROM questions WHERE level = $1 AND is_active = true AND in_rotation = true",
@@ -213,11 +218,13 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
   for (const category of wantedCategories) {
     const leanWeak = Math.random() < WEAK_SKILL_SHARE;
     if (category === "math") {
-      drafts.push(
-        leanWeak && weakTemplates.length > 0
-          ? generatedDraftByKey(level, pickRandom(weakTemplates), avoidGenerated)
-          : generatedDraft(level, avoidGenerated)
-      );
+      const weakAllowed = weakTemplates.filter(mathGate.allowed);
+      const draft =
+        leanWeak && weakAllowed.length > 0
+          ? generatedDraftByKey(level, pickRandom(weakAllowed), avoidGenerated)
+          : generatedDraft(level, avoidGenerated, mathGate.allowed);
+      mathGate.markServed(draft.templateKey!);
+      drafts.push(draft);
       continue;
     }
 
@@ -236,7 +243,9 @@ export async function buildRoundQuestions(level: Level, childId: string): Promis
       usedThisRound.add(picked.id);
       drafts.push(toDraft(picked));
     } else {
-      drafts.push(generatedDraft(level, avoidGenerated));
+      const draft = generatedDraft(level, avoidGenerated, mathGate.allowed);
+      mathGate.markServed(draft.templateKey!);
+      drafts.push(draft);
     }
   }
 
@@ -407,9 +416,13 @@ export async function buildCheckupQuestions(childId: string): Promise<RoundQuest
     [childId]
   );
 
+  // Math types this child's rules rule out (lib/mathRules.ts) aren't
+  // rechecked either - "never" means never, and a "weekly" one already
+  // served this week waits.
+  const mathGate = await mathTemplateGate(childId);
   const combined: CheckupWrongItem[] = [
     ...wrongBank.map((row) => ({ kind: "bank" as const, row, answeredAt: row.answered_at })),
-    ...wrongGenerated.map((g) => ({
+    ...wrongGenerated.filter((g) => mathGate.allowed(g.template_key)).map((g) => ({
       kind: "generated" as const,
       level: g.level,
       templateKey: g.template_key,
@@ -425,6 +438,7 @@ export async function buildCheckupQuestions(childId: string): Promise<RoundQuest
   for (const item of chosen) {
     if (item.kind === "generated") {
       drafts.push(generatedDraftByKey(item.level, item.templateKey, avoidGenerated));
+      mathGate.markServed(item.templateKey);
       continue;
     }
     const substitute = await pickSimilarBankQuestion(item.row, usedBankIds, childId);

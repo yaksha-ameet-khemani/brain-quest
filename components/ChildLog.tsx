@@ -312,6 +312,94 @@ function CategoryWeightsEditor({ childId }: { childId: string }) {
   );
 }
 
+type MathRuleChoice = "normal" | "weekly" | "never";
+interface MathType {
+  key: string;
+  label: string;
+  level: Level;
+  rule: MathRuleChoice;
+}
+
+function MathRulesEditor({ childId }: { childId: string }) {
+  const [types, setTypes] = useState<MathType[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch(`/api/admin/children/${childId}/math-rules`);
+      if (res.ok) setTypes((await res.json()).types);
+    })();
+  }, [childId]);
+
+  async function save() {
+    if (!types) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/children/${childId}/math-rules`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rules: Object.fromEntries(types.map((t) => [t.key, t.rule])) }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error ?? "Could not save.");
+        return;
+      }
+      setTypes(data.types);
+      setMessage("Saved!");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!types) return null;
+
+  return (
+    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+      <h2 className="font-bold">🔢 Math question types</h2>
+      <p className="mt-1 text-xs text-slate-500">
+        Turn off a kind of math question this child hasn&apos;t learned yet, or let it come up at most
+        once a week. Covers normal, bonus and checkup rounds.
+      </p>
+      <div className="mt-3 grid gap-2">
+        {types.map((t) => (
+          <div key={t.key} className="flex items-center justify-between gap-3">
+            <span className="text-sm">
+              {t.label} <span className="text-xs text-slate-400">L{t.level}</span>
+            </span>
+            <select
+              value={t.rule}
+              onChange={(e) =>
+                setTypes((all) =>
+                  all!.map((x) => (x.key === t.key ? { ...x, rule: e.target.value as MathRuleChoice } : x))
+                )
+              }
+              className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
+            >
+              <option value="normal">Normal</option>
+              <option value="weekly">Once a week</option>
+              <option value="never">Never</option>
+            </select>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {saving && <Spinner className="h-3.5 w-3.5" />}
+          {saving ? "Saving…" : "Save math types"}
+        </button>
+        {message && <p className="text-sm text-brand-700">{message}</p>}
+      </div>
+    </section>
+  );
+}
+
 interface TimerData {
   answerSeconds: number | null;
   levelDefaultSeconds: number;
@@ -689,6 +777,7 @@ export default function ChildLog({
         <div className="flex flex-col gap-6">
           <PinEditor childId={childId} />
           {isAdmin && <CategoryWeightsEditor childId={childId} />}
+          {isAdmin && <MathRulesEditor childId={childId} />}
           {isAdmin && <TimerEditor childId={childId} />}
           {isAdmin && <ResetActivityButton childId={childId} onDone={refreshLog} />}
         </div>

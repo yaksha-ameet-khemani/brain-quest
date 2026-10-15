@@ -55,6 +55,10 @@ Open http://localhost:3000.
   (`WEAK_SKILL_SHARE`) the slot picks an unseen question on a skill the
   child gets right 50% of the time or less (`WEAK_SKILL_MAX_PCT`, from the
   skill map). Weak skill first, then a question, so small skills get a turn.
+- Admin can set each math question type, per child, to Normal / Once a
+  week / Never (child page → ⚙️ Settings → "Math question types",
+  `lib/mathRules.ts`) - e.g. no percentages until they're taught. Applies to
+  normal, bonus and checkup rounds.
 - Level 1 has 40-45 questions each for clocks, measuring, folding and
   blocks (v46 added 25 each), so weak-skill picks don't run dry.
 - Three levels: 1 (younger), 2 (older), 3 (most advanced) - a parent assigns

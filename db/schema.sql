@@ -84,6 +84,18 @@ create table child_category_weights (
 );
 
 -- ---------------------------------------------------------------------------
+-- child_math_rules: per-child limits on generated math question types (see
+-- lib/mathRules.ts). 'never' = not served to this child; 'weekly' = at most
+-- once in any rolling 7 days. No row = normal.
+-- ---------------------------------------------------------------------------
+create table child_math_rules (
+  child_id uuid not null references children (id) on delete cascade,
+  template_key text not null,
+  rule text not null check (rule in ('never', 'weekly')),
+  primary key (child_id, template_key)
+);
+
+-- ---------------------------------------------------------------------------
 -- Skill map: the one fixed list of skills every bank question is tagged with
 -- (questions.skill_key). Skills cut across categories. Math questions map to
 -- skills by template_key in lib/skills.ts instead. Rows: db/migrations/016.

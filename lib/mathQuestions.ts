@@ -241,9 +241,11 @@ const level1Templates: TemplateEntry[] = [
   {
     key: "share_equally",
     run: () => {
-      const total = randInt(4, 10) * 4;
+      // Pick the answer first so the total always shares out exactly - the
+      // old "multiple of 4 shared among 2-4" gave 32 / 3 = 10.666... answers.
       const groups = randInt(2, 4);
-      const correct = total / groups;
+      const correct = randInt(3, 12);
+      const total = correct * groups;
       const { options, correctIndex } = buildOptions(correct, [correct + groups, correct - 1, total]);
       return {
         category: "math",
@@ -605,8 +607,16 @@ export function templateKeysFor(level: Level): string[] {
  * (same skill, new numbers) rather than the exact same question, which
  * doesn't even exist as a fixed thing to repeat. See buildCheckupQuestions
  * in lib/buildRound.ts. */
-export function generateMathQuestionWithKey(level: Level): GeneratedQuestionWithKey {
-  const templates = templatesFor(level);
+export function generateMathQuestionWithKey(
+  level: Level,
+  allowed: (templateKey: string) => boolean = () => true
+): GeneratedQuestionWithKey {
+  // Only templates this child may get (lib/mathRules.ts); if a child's rules
+  // ever block every template at a level, fall back to all of them rather
+  // than fail to build a round.
+  const all = templatesFor(level);
+  const permitted = all.filter((t) => allowed(t.key));
+  const templates = permitted.length > 0 ? permitted : all;
   const entry = templates[randInt(0, templates.length - 1)]!;
   return { ...entry.run(), templateKey: entry.key, penPaper: entry.penPaper === true };
 }
