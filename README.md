@@ -56,7 +56,7 @@ Open http://localhost:3000.
   child gets right 50% of the time or less (`WEAK_SKILL_MAX_PCT`, from the
   skill map). Weak skill first, then a question, so small skills get a turn.
 - Admin can set each math question type, per child, to Normal / Once a
-  week / Never (child page → ⚙️ Settings → "Math question types",
+  week / Every 2 days / Never (child page → ⚙️ Settings → "Math question types",
   `lib/mathRules.ts`) - e.g. no percentages until they're taught. Applies to
   normal, bonus and checkup rounds.
 - Level 1 has 40-45 questions each for clocks, measuring, folding and

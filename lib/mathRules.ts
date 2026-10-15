@@ -8,13 +8,16 @@ import type { Level } from "@/lib/config";
 // age puzzles) or may want one to come up rarely - so admin can mark each
 // math template, per child, as:
 // * "never"  - not served to this child at all;
-// * "weekly" - served at most once in any rolling 7 days.
+// * "weekly" - served at most once in any rolling 7 days;
+// * "every_2_days" - served at most once in any rolling 2 days.
 // Anything without a rule is normal. Used by lib/buildRound.ts for standard
 // (bonus level included) and checkup rounds.
 
-export type MathRule = "normal" | "weekly" | "never";
+export type MathRule = "normal" | "every_2_days" | "weekly" | "never";
+type StoredRule = Exclude<MathRule, "normal">;
 
-export const WEEKLY_RULE_DAYS = 7;
+/** How many days a limited template waits after being served. */
+export const RULE_GAP_DAYS: Record<"weekly" | "every_2_days", number> = { weekly: 7, every_2_days: 2 };
 
 /** Plain names for the admin Settings card. */
 export const MATH_TEMPLATE_LABEL: Record<string, string> = {
@@ -45,45 +48,43 @@ export const MATH_TEMPLATE_LABEL: Record<string, string> = {
   dice_probability: "Dice probability",
 };
 
-export interface MathRules {
-  never: Set<string>;
-  weekly: Set<string>;
-}
-
-export async function getMathRules(childId: string): Promise<MathRules> {
-  const rows = await query<{ template_key: string; rule: "never" | "weekly" }>(
+/** template key -> rule, for templates that aren't normal. */
+export async function getMathRules(childId: string): Promise<Map<string, StoredRule>> {
+  const rows = await query<{ template_key: string; rule: StoredRule }>(
     "SELECT template_key, rule FROM child_math_rules WHERE child_id = $1",
     [childId]
   );
-  return {
-    never: new Set(rows.filter((r) => r.rule === "never").map((r) => r.template_key)),
-    weekly: new Set(rows.filter((r) => r.rule === "weekly").map((r) => r.template_key)),
-  };
+  return new Map(rows.map((r) => [r.template_key, r.rule]));
 }
 
 /** A predicate saying whether a template may be served to this child right
- * now. "Weekly" templates already served in the last WEEKLY_RULE_DAYS days
- * (any round kind) are out; `markServed` records one picked while building
- * a round, so the same round can't take a weekly one twice. */
+ * now. A limited template (weekly / every 2 days) is out if a round started
+ * within its gap (RULE_GAP_DAYS, rolling, any round kind) served it;
+ * `markServed` records one picked while building a round, so the same round
+ * can't take a limited one twice. */
 export async function mathTemplateGate(
   childId: string
 ): Promise<{ allowed: (templateKey: string) => boolean; markServed: (templateKey: string) => void }> {
   const rules = await getMathRules(childId);
-  const usedThisWeek = new Set<string>();
-  if (rules.weekly.size > 0) {
-    const rows = await query<{ template_key: string }>(
-      `SELECT DISTINCT rq.template_key
+  const limited = [...rules].filter(([, rule]) => rule !== "never");
+  const blocked = new Set<string>();
+  if (limited.length > 0) {
+    const rows = await query<{ template_key: string; days_ago: string }>(
+      `SELECT rq.template_key, EXTRACT(EPOCH FROM now() - MAX(r.started_at)) / 86400 AS days_ago
        FROM round_questions rq JOIN rounds r ON r.id = rq.round_id
        WHERE r.child_id = $1 AND rq.template_key = ANY($2::text[])
-         AND r.started_at > now() - make_interval(days => $3)`,
-      [childId, [...rules.weekly], WEEKLY_RULE_DAYS]
+       GROUP BY rq.template_key`,
+      [childId, limited.map(([key]) => key)]
     );
-    for (const r of rows) usedThisWeek.add(r.template_key);
+    for (const r of rows) {
+      const rule = rules.get(r.template_key) as keyof typeof RULE_GAP_DAYS;
+      if (Number(r.days_ago) < RULE_GAP_DAYS[rule]) blocked.add(r.template_key);
+    }
   }
   return {
-    allowed: (key) => !rules.never.has(key) && !usedThisWeek.has(key),
+    allowed: (key) => rules.get(key) !== "never" && !blocked.has(key),
     markServed: (key) => {
-      if (rules.weekly.has(key)) usedThisWeek.add(key);
+      if (rules.has(key)) blocked.add(key);
     },
   };
 }
@@ -99,7 +100,7 @@ export async function listMathRules(childId: string, level: Level) {
     for (const key of templateKeysFor(lv)) {
       if (seen.has(key)) continue;
       seen.add(key);
-      const rule: MathRule = rules.never.has(key) ? "never" : rules.weekly.has(key) ? "weekly" : "normal";
+      const rule: MathRule = rules.get(key) ?? "normal";
       out.push({ key, label: MATH_TEMPLATE_LABEL[key] ?? key, level: lv, rule });
     }
   }

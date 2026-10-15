@@ -1732,3 +1732,15 @@ Level 2 templates he meets in bonus rounds; plain sums are the Level 1
   mostly on `ratio_split` (his weak fractions/ratios skill, and the only
   allowed Level 2 template on it) - about 40 of 63 math slots across 25
   test rounds.
+
+**v48 update - "every 2 days" math limit:** after v47 put Banku's ratio
+questions on "once a week", the user found that too rare ("he will easily
+skip it or guess it") and asked for once in 2 days. Migration 024 widens
+`child_math_rules.rule` to also allow `every_2_days`; `lib/mathRules.ts`
+now keeps each limited rule's gap in `RULE_GAP_DAYS` (weekly 7,
+every_2_days 2) and blocks a template while the child's most recent round
+that served it started less than its gap ago (rolling). The admin card has
+the new "Every 2 days" option. Banku's `ratio_split` set to every_2_days.
+Checked read-only against his real history: he was served a ratio question
+at 09:36 UTC today, so it is blocked until 2 days after that; 12 test bonus
+rounds served none, and never two in one round.

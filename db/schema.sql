@@ -85,13 +85,13 @@ create table child_category_weights (
 
 -- ---------------------------------------------------------------------------
 -- child_math_rules: per-child limits on generated math question types (see
--- lib/mathRules.ts). 'never' = not served to this child; 'weekly' = at most
--- once in any rolling 7 days. No row = normal.
+-- lib/mathRules.ts). 'never' = not served to this child; 'weekly' / 'every_2_days' =
+-- at most once in any rolling 7 / 2 days. No row = normal.
 -- ---------------------------------------------------------------------------
 create table child_math_rules (
   child_id uuid not null references children (id) on delete cascade,
   template_key text not null,
-  rule text not null check (rule in ('never', 'weekly')),
+  rule text not null check (rule in ('never', 'weekly', 'every_2_days')),
   primary key (child_id, template_key)
 );
 

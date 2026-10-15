@@ -6,7 +6,7 @@ import type { Level } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
-const RULES: MathRule[] = ["normal", "weekly", "never"];
+const RULES: MathRule[] = ["normal", "every_2_days", "weekly", "never"];
 
 async function childLevel(childId: string): Promise<Level | null> {
   const row = await queryOne<{ level: Level }>("SELECT level FROM children WHERE id = $1", [childId]);
@@ -15,7 +15,7 @@ async function childLevel(childId: string): Promise<Level | null> {
 
 // GET/PUT: a child's math question type rules (lib/mathRules.ts) - for each
 // generated math template they can meet (their level and the bonus level
-// above), normal / at most once a week / never. Admin-only, like the
+// above), normal / at most once in 2 days / at most once a week / never. Admin-only, like the
 // section priorities and timers.
 export async function GET(_req: Request, { params }: { params: Promise<{ childId: string }> }) {
   const { childId } = await params;

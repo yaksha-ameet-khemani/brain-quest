@@ -312,7 +312,7 @@ function CategoryWeightsEditor({ childId }: { childId: string }) {
   );
 }
 
-type MathRuleChoice = "normal" | "weekly" | "never";
+type MathRuleChoice = "normal" | "every_2_days" | "weekly" | "never";
 interface MathType {
   key: string;
   label: string;
@@ -361,7 +361,7 @@ function MathRulesEditor({ childId }: { childId: string }) {
       <h2 className="font-bold">🔢 Math question types</h2>
       <p className="mt-1 text-xs text-slate-500">
         Turn off a kind of math question this child hasn&apos;t learned yet, or let it come up at most
-        once a week. Covers normal, bonus and checkup rounds.
+        once every 2 days or once a week. Covers normal, bonus and checkup rounds.
       </p>
       <div className="mt-3 grid gap-2">
         {types.map((t) => (
@@ -379,6 +379,7 @@ function MathRulesEditor({ childId }: { childId: string }) {
               className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
             >
               <option value="normal">Normal</option>
+              <option value="every_2_days">Every 2 days</option>
               <option value="weekly">Once a week</option>
               <option value="never">Never</option>
             </select>
